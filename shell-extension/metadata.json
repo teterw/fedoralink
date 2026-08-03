@@ -1,0 +1,8 @@
+{
+  "uuid": "fedoralink@teterw.github.io",
+  "name": "FedoraLink",
+  "description": "Connect your Android phone to Fedora over Bluetooth. Mirrors notifications, syncs your clipboard, shows phone battery, and rings a misplaced phone — all from the Quick Settings panel.",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://github.com/teterw/fedoralink",
+  "version": 1
+}

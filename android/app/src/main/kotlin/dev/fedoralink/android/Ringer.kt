@@ -1,0 +1,92 @@
+package dev.fedoralink.android
+
+import android.content.Context
+import android.media.AudioAttributes
+import android.media.AudioManager
+import android.media.Ringtone
+import android.media.RingtoneManager
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.util.Log
+
+/**
+ * Find-my-phone: ring at full volume even when the phone is silenced.
+ *
+ * Uses the alarm stream, because that's the one that still plays under
+ * Do Not Disturb — which is exactly when you've lost the thing.
+ */
+object Ringer {
+
+    private const val RING_DURATION_MS = 15_000L
+
+    private var ringtone: Ringtone? = null
+    private var previousAlarmVolume: Int? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private val stopRunnable = Runnable { stop(null) }
+
+    fun ring(context: Context) {
+        stop(context)
+
+        val audio = context.getSystemService(AudioManager::class.java) ?: return
+        try {
+            previousAlarmVolume = audio.getStreamVolume(AudioManager.STREAM_ALARM)
+            audio.setStreamVolume(
+                AudioManager.STREAM_ALARM,
+                audio.getStreamMaxVolume(AudioManager.STREAM_ALARM),
+                0,
+            )
+        } catch (e: SecurityException) {
+            // Changing volume under some DND policies needs a grant we
+            // don't have. Ring at whatever the current level is.
+            Log.d("FedoraLink", "could not raise alarm volume: ${e.message}")
+        }
+
+        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+
+        ringtone = RingtoneManager.getRingtone(context, uri)?.apply {
+            audioAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ALARM)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            play()
+        }
+
+        vibrate(context)
+        handler.postDelayed(stopRunnable, RING_DURATION_MS)
+    }
+
+    fun stop(context: Context?) {
+        handler.removeCallbacks(stopRunnable)
+        ringtone?.runCatching { stop() }
+        ringtone = null
+
+        val restore = previousAlarmVolume
+        previousAlarmVolume = null
+        if (context != null && restore != null) {
+            runCatching {
+                context.getSystemService(AudioManager::class.java)
+                    ?.setStreamVolume(AudioManager.STREAM_ALARM, restore, 0)
+            }
+        }
+    }
+
+    private fun vibrate(context: Context) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            context.getSystemService(VibratorManager::class.java)?.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Vibrator::class.java)
+        } ?: return
+
+        val pattern = longArrayOf(0, 400, 300, 400, 300)
+        runCatching {
+            vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
+        }
+        handler.postDelayed({ runCatching { vibrator.cancel() } }, RING_DURATION_MS)
+    }
+}

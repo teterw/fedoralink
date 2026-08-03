@@ -1,0 +1,20 @@
+[Unit]
+Description=FedoraLink — Bluetooth link to your Android phone
+Documentation=https://github.com/teterw/fedoralink
+# The daemon talks to BlueZ over the system bus and to the notification
+# server over the session bus, so it needs a full user session.
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/fedoralink
+Restart=on-failure
+RestartSec=5
+# Bluetooth stalls and D-Bus hiccups are the normal failure mode here;
+# don't let a bad afternoon permanently disable the unit.
+StartLimitIntervalSec=0
+Slice=session.slice
+
+[Install]
+WantedBy=graphical-session.target
