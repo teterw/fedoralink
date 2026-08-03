@@ -1,0 +1,21 @@
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+src = ["daemon"]
+
+[tool.ruff.lint]
+# Pinned explicitly so a new ruff release can't fail CI by widening its
+# defaults underneath us.
+select = [
+    "E",    # pycodestyle
+    "F",    # pyflakes
+    "W",    # warnings
+    "I",    # import sorting
+    "UP",   # pyupgrade
+    "B",    # bugbear
+    "RUF",  # ruff-specific
+]
+
+# E402 stays enabled: gi.require_version() must run before the
+# gi.repository imports, and the handful of files that need it carry an
+# explicit `# noqa: E402` rather than a blanket exemption.

@@ -5,13 +5,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-import gi
+from gi.repository import Gio, GLib
 
-gi.require_version("Gio", "2.0")
-from gi.repository import Gio, GLib  # noqa: E402
-
-from . import Plugin
 from ..protocol import NOTIFICATION, NOTIFICATION_ACTION, NOTIFICATION_DISMISS
+from . import Plugin
 
 log = logging.getLogger(__name__)
 

@@ -21,7 +21,7 @@ class Plugin:
     #: Advertised to the phone in the identity handshake.
     name: str = "plugin"
 
-    def __init__(self, daemon: "Daemon") -> None:
+    def __init__(self, daemon: Daemon) -> None:
         self.daemon = daemon
 
     def start(self) -> None:
@@ -30,10 +30,10 @@ class Plugin:
     def stop(self) -> None:
         """Called once at daemon shutdown."""
 
-    def on_connected(self, connection: "Connection") -> None:
+    def on_connected(self, connection: Connection) -> None:
         """A phone just linked up."""
 
-    def on_disconnected(self, connection: "Connection") -> None:
+    def on_disconnected(self, connection: Connection) -> None:
         """The link dropped. Tear down anything per-connection."""
 
     def on_packet(self, packet: dict[str, Any]) -> None:

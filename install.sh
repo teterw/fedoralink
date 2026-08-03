@@ -122,7 +122,10 @@ ok "Extension installed"
 info "Enabling background service"
 cp "${SRC}/daemon/data/fedoralink.service" "${UNIT_DIR}/fedoralink.service"
 systemctl --user daemon-reload
-systemctl --user enable --now fedoralink.service
+systemctl --user enable fedoralink.service
+# restart, not `enable --now`: on an upgrade the service is already
+# active, and `--now` would leave the previous version running.
+systemctl --user restart fedoralink.service
 ok "Service running"
 
 # --------------------------------------------------------------- finish up

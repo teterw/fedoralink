@@ -13,14 +13,12 @@ from __future__ import annotations
 
 import logging
 import socket
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-import gi
+from gi.repository import Gio, GLib
 
-gi.require_version("Gio", "2.0")
-from gi.repository import Gio, GLib  # noqa: E402
-
-from .protocol import PacketReader, ProtocolError, SERVICE_UUID, serialize  # noqa: E402
+from .protocol import SERVICE_UUID, PacketReader, ProtocolError, serialize
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +55,7 @@ class Connection:
         device_path: str,
         device_name: str,
         on_packet: Callable[[dict[str, Any]], None],
-        on_close: Callable[["Connection"], None],
+        on_close: Callable[[Connection], None],
     ) -> None:
         self.sock = sock
         self.device_path = device_path

@@ -5,15 +5,16 @@ Documentation=https://github.com/teterw/fedoralink
 # server over the session bus, so it needs a full user session.
 PartOf=graphical-session.target
 After=graphical-session.target
+# Bluetooth stalls and D-Bus hiccups are the normal failure mode here;
+# don't let a bad afternoon permanently disable the unit. This belongs in
+# [Unit] — systemd ignores it under [Service].
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 ExecStart=%h/.local/bin/fedoralink
 Restart=on-failure
 RestartSec=5
-# Bluetooth stalls and D-Bus hiccups are the normal failure mode here;
-# don't let a bad afternoon permanently disable the unit.
-StartLimitIntervalSec=0
 Slice=session.slice
 
 [Install]

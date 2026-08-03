@@ -6,10 +6,7 @@ import logging
 import signal
 from typing import Any
 
-import gi
-
-gi.require_version("Gio", "2.0")
-from gi.repository import Gio, GLib  # noqa: E402
+from gi.repository import Gio, GLib
 
 from .dbus_service import DBusService
 from .plugins.battery import BatteryPlugin

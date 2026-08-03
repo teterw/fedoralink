@@ -11,10 +11,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import gi
-
-gi.require_version("Gio", "2.0")
-from gi.repository import Gio, GLib  # noqa: E402
+from gi.repository import Gio, GLib
 
 if TYPE_CHECKING:  # pragma: no cover
     from .daemon import Daemon
@@ -41,7 +38,7 @@ INTROSPECTION = """
 
 
 class DBusService:
-    def __init__(self, daemon: "Daemon") -> None:
+    def __init__(self, daemon: Daemon) -> None:
         self.daemon = daemon
         self._bus: Gio.DBusConnection | None = None
         self._owner_id: int | None = None

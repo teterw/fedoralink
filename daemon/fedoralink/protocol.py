@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import json
 import time
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 # Bumped when a change would break an older peer. The identity exchange
 # carries it so each side can refuse or degrade rather than misbehave.
