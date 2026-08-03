@@ -30,6 +30,13 @@ android {
                 storePassword = System.getenv("SIGNING_KEYSTORE_PASSWORD")
                 keyAlias = System.getenv("SIGNING_KEY_ALIAS")
                 keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+
+                // v1 is only needed below API 24 and minSdk is 26.
+                // v3 carries the proof-of-rotation record, so it has to be
+                // present *before* a rotation is ever needed.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
             }
         }
     }
