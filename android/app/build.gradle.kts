@@ -3,6 +3,10 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Supplied by CI from repository secrets. Absent on a normal local build,
+// in which case the release APK comes out unsigned rather than failing.
+val keystorePath: String? = System.getenv("SIGNING_KEYSTORE_PATH")
+
 android {
     namespace = "dev.fedoralink.android"
     compileSdk = 35
@@ -13,12 +17,29 @@ android {
         // story for holding a Bluetooth socket open.
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        // Overridable so a tagged CI build stamps the tag rather than
+        // needing a commit every time the version changes.
+        versionCode = (System.getenv("VERSION_CODE") ?: "2").toInt()
+        versionName = System.getenv("VERSION_NAME") ?: "0.2.0"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (keystorePath != null) {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("SIGNING_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
+            // A debug-signed APK is one of the loudest signals Play Protect
+            // looks for, which is the whole reason this config exists.
+            signingConfig =
+                if (keystorePath != null) signingConfigs.getByName("release") else null
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

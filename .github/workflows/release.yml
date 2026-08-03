@@ -11,11 +11,14 @@ permissions:
 
 jobs:
   android:
-    name: Build Android APK
+    name: Build signed Android APK
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: versionCode is derived from the commit count.
+          fetch-depth: 0
 
       - name: Set up JDK 21
         uses: actions/setup-java@v4
@@ -32,18 +35,53 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Build debug APK
+      - name: Restore signing keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::SIGNING_KEYSTORE_BASE64 is not set. Refusing to ship an unsigned APK."
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          RAW="${GITHUB_REF_NAME:-v0.0.0}"
+          echo "name=${RAW#v}" >> "$GITHUB_OUTPUT"
+          # Monotonic and derived, so two tags can never collide on a
+          # versionCode and block an in-place update.
+          echo "code=$(git rev-list --count HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
         working-directory: android
-        run: gradle assembleDebug --no-daemon --stacktrace
+        env:
+          SIGNING_KEYSTORE_PATH: ${{ runner.temp }}/release.jks
+          SIGNING_KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: gradle assembleRelease --no-daemon --stacktrace
+
+      - name: Verify the APK is actually signed
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK" || { echo "::error::No signed APK produced"; exit 1; }
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
 
       - name: Name the APK after the tag
         id: rename
         run: |
-          VERSION="${GITHUB_REF_NAME:-dev}"
-          SRC=android/app/build/outputs/apk/debug/app-debug.apk
-          DEST="fedoralink-${VERSION}.apk"
-          cp "$SRC" "$DEST"
+          DEST="fedoralink-${GITHUB_REF_NAME:-dev}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$DEST"
           echo "apk=$DEST" >> "$GITHUB_OUTPUT"
+
+      - name: Remove the keystore from the runner
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -67,5 +105,15 @@ jobs:
 
             **Android (phone):** download the `.apk` below and sideload it.
 
-            The APK is debug-signed, so Android will warn about an unknown
-            source. That is expected for a sideloaded build.
+            This build is signed with the project's release key. Android will
+            still ask you to allow installs from an unknown source, and
+            Play Protect may warn that the app is not commonly downloaded —
+            choose **More details → Install anyway**.
+
+            After installing, notification mirroring needs one extra step
+            that Android only allows a human to take:
+
+            **Settings → Apps → FedoraLink → ⋮ → Allow restricted settings**
+
+            then grant notification access. Sideloaded apps cannot be given
+            notification access until that is unlocked.

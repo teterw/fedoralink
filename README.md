@@ -57,8 +57,18 @@ gnome-extensions enable fedoralink@teterw.github.io
 ### Android (phone)
 
 Download the APK from [Releases](https://github.com/teterw/fedoralink/releases)
-and sideload it. It's debug-signed, so Android will warn about an unknown
-source — expected for a sideloaded build.
+and sideload it. Release builds are signed with the project's own key, but
+Android will still ask you to allow installs from an unknown source, and Play
+Protect may warn that the app isn't commonly downloaded — **More details →
+Install anyway**.
+
+Then unlock the one thing Android reserves for a human:
+
+**Settings → Apps → FedoraLink → ⋮ → Allow restricted settings**
+
+Sideloaded apps cannot be granted notification access until that is done. The
+toggle will silently refuse to stick otherwise, which looks like a bug in the
+app but isn't.
 
 ### Pair them
 
