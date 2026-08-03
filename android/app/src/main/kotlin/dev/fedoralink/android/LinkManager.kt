@@ -12,7 +12,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -79,12 +79,13 @@ object LinkManager {
     fun stop() {
         val current = scope ?: return
         scope = null
+
+        // Close the socket before cancelling: accept() and read() are
+        // blocking calls that coroutine cancellation alone won't interrupt.
         session.getAndSet(null)?.close()
-        current.launch {
-            jobs.forEach { runCatching { it.cancelAndJoin() } }
-            jobs.clear()
-        }
-        current.coroutineContext[Job]?.cancel()
+        current.cancel()
+        jobs.clear()
+
         _state.value = State.STOPPED
         _peerName.value = null
     }
