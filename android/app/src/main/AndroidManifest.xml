@@ -45,12 +45,21 @@
             android:name=".ClipboardSendActivity"
             android:exported="true"
             android:excludeFromRecents="true"
+            android:label="@string/send_clipboard"
             android:noHistory="true"
             android:taskAffinity=""
             android:theme="@style/Theme.FedoraLink.Invisible">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- Share sheet route. Text arrives in the Intent, so this
+                 path never touches the clipboard and is unaffected by the
+                 Android 10 background-read restriction. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 

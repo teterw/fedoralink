@@ -7,6 +7,8 @@
 
 import GObject from 'gi://GObject';
 import Gio from 'gi://Gio';
+import Meta from 'gi://Meta';
+import St from 'gi://St';
 
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {QuickMenuToggle, SystemIndicator} from 'resource:///org/gnome/shell/ui/quickSettings.js';
@@ -21,6 +23,16 @@ const DaemonInterface = `
     <method name="Ping"/>
     <method name="SendClipboard"/>
     <method name="Reconnect"/>
+    <method name="SetClipboard">
+      <arg name="content" type="s" direction="in"/>
+      <arg name="force" type="b" direction="in"/>
+    </method>
+    <method name="SetClipboardBridge">
+      <arg name="active" type="b" direction="in"/>
+    </method>
+    <signal name="ClipboardChanged">
+      <arg name="content" type="s"/>
+    </signal>
     <property name="Connected" type="b" access="read"/>
     <property name="DeviceName" type="s" access="read"/>
     <property name="BatteryLevel" type="i" access="read"/>
@@ -42,6 +54,86 @@ function batteryIconName(level, charging) {
         : `battery-level-${step}-symbolic`;
 }
 
+/* Clipboard I/O on the daemon's behalf.
+ *
+ * The daemon can't read the Wayland selection without spawning wl-paste,
+ * and without the data-control protocol (which Mutter still lacks) every
+ * such spawn maps a real toplevel window — which is why polling used to
+ * flash a wl-clipboard icon in and out of the dock every two seconds.
+ *
+ * The shell has no such problem: it *is* the compositor. It reads and
+ * writes the selection directly, and Mutter gives it an owner-changed
+ * signal, so sync is event-driven rather than polled.
+ */
+class ClipboardBridge {
+    constructor(proxy) {
+        this._proxy = proxy;
+        this._clipboard = St.Clipboard.get_default();
+
+        // Last value we exchanged with the daemon, so setting the
+        // clipboard from the phone doesn't bounce straight back.
+        this._lastValue = null;
+
+        this._selection = global.display.get_selection();
+        this._ownerChangedId = this._selection.connect(
+            'owner-changed', (_selection, type) => {
+                if (type === Meta.SelectionType.SELECTION_CLIPBOARD)
+                    this._onLocalCopy();
+            });
+
+        this._signalId = this._proxy.connectSignal(
+            'ClipboardChanged', (_p, _s, [content]) => this._onRemote(content));
+
+        this._proxy.SetClipboardBridgeRemote(true, () => {});
+    }
+
+    _onLocalCopy() {
+        this._clipboard.get_text(St.ClipboardType.CLIPBOARD, (_cb, text) => {
+            if (!text || text === this._lastValue)
+                return;
+
+            this._lastValue = text;
+            this._proxy.SetClipboardRemote(text, false, () => {});
+        });
+    }
+
+    _onRemote(content) {
+        if (!content || content === this._lastValue)
+            return;
+
+        this._lastValue = content;
+        this._clipboard.set_text(St.ClipboardType.CLIPBOARD, content);
+    }
+
+    /* Quick Settings "Send Clipboard to Phone": resend even when the
+     * content hasn't changed, since the user asked for it explicitly. */
+    sendCurrent() {
+        this._clipboard.get_text(St.ClipboardType.CLIPBOARD, (_cb, text) => {
+            if (!text)
+                return;
+
+            this._lastValue = text;
+            this._proxy.SetClipboardRemote(text, true, () => {});
+        });
+    }
+
+    destroy() {
+        if (this._ownerChangedId) {
+            this._selection.disconnect(this._ownerChangedId);
+            this._ownerChangedId = null;
+        }
+        if (this._signalId) {
+            this._proxy.disconnectSignal(this._signalId);
+            this._signalId = null;
+        }
+        // Best effort: if the shell is going down the daemon's name watch
+        // catches it anyway.
+        this._proxy.SetClipboardBridgeRemote(false, () => {});
+        this._proxy = null;
+        this._selection = null;
+    }
+}
+
 const FedoraLinkToggle = GObject.registerClass(
 class FedoraLinkToggle extends QuickMenuToggle {
     _init() {
@@ -60,8 +152,14 @@ class FedoraLinkToggle extends QuickMenuToggle {
         this._pingItem = this.menu.addAction(_('Find My Phone'), () => {
             this._call('Ping');
         });
+        // Set by the indicator once the bridge exists; falls back to the
+        // daemon's own resend if it doesn't.
+        this.onSendClipboard = null;
         this._clipboardItem = this.menu.addAction(_('Send Clipboard to Phone'), () => {
-            this._call('SendClipboard');
+            if (this.onSendClipboard)
+                this.onSendClipboard();
+            else
+                this._call('SendClipboard');
         });
         this._reconnectItem = this.menu.addAction(_('Reconnect'), () => {
             this._call('Reconnect');
@@ -138,6 +236,7 @@ class FedoraLinkIndicator extends SystemIndicator {
     _init() {
         super._init();
 
+        this._bridge = null;
         this._indicator = this._addIndicator();
         this._indicator.iconName = 'phone-symbolic';
         this._indicator.visible = false;
@@ -153,6 +252,8 @@ class FedoraLinkIndicator extends SystemIndicator {
                     return;
                 }
                 this._toggle.setProxy(proxy);
+                this._bridge = new ClipboardBridge(proxy);
+                this._toggle.onSendClipboard = () => this._bridge.sendCurrent();
                 this._sync();
             });
 
@@ -169,6 +270,9 @@ class FedoraLinkIndicator extends SystemIndicator {
     }
 
     destroy() {
+        this._bridge?.destroy();
+        this._bridge = null;
+
         if (this._propsId) {
             this._proxy.disconnect(this._propsId);
             this._propsId = null;

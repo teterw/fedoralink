@@ -51,6 +51,19 @@ object ClipboardBridge {
         val text = clip.getItemAt(0).coerceToText(context)?.toString()
         if (text.isNullOrEmpty()) return false
 
+        return sendText(text)
+    }
+
+    /**
+     * Sends text we were handed directly, with no clipboard read involved.
+     *
+     * This is the one path the Android 10 clipboard restriction cannot
+     * touch: a share-sheet hand-off puts the text in the Intent, so there
+     * is nothing to be refused access to.
+     */
+    fun sendText(text: String): Boolean {
+        if (text.isEmpty()) return false
+
         lastSynced = text
         return LinkManager.send(Protocol.CLIPBOARD, JSONObject().put("content", text))
     }

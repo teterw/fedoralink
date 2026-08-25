@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
+import android.content.ClipboardManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -27,6 +28,14 @@ class MainActivity : AppCompatActivity() {
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { refresh() }
+
+    /* Copying while FedoraLink is open syncs without being asked. This is
+     * only legal because the listener fires while we hold focus — Android
+     * hands an unfocused app nothing, which is why there is no equivalent
+     * in LinkService. Anywhere else, use the share sheet or the tile. */
+    private val clipListener = ClipboardManager.OnPrimaryClipChangedListener {
+        if (LinkManager.isConnected()) ClipboardBridge.sendToPc(this)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,6 +98,18 @@ class MainActivity : AppCompatActivity() {
                 }
             }.collect { binding.statusText.text = it }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        getSystemService(ClipboardManager::class.java)
+            ?.addPrimaryClipChangedListener(clipListener)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        getSystemService(ClipboardManager::class.java)
+            ?.removePrimaryClipChangedListener(clipListener)
     }
 
     override fun onResume() {

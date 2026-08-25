@@ -110,17 +110,34 @@ These are platform limits, not bugs, and they shaped the design:
 
 - **Android will not let a background app read the clipboard.** Since
   Android 10 only a focused app or the active keyboard may read it, and no
-  permission lifts this. Phone → PC clipboard therefore has to be
-  user-initiated: use the Quick Settings tile or the button in the app. PC →
-  phone works automatically.
+  permission lifts this — `READ_CLIPBOARD_IN_BACKGROUND` is signature-level,
+  so not even ADB can grant it. Phone → PC therefore has to be
+  user-initiated, by one of:
+  - **Share → FedoraLink** from any app. The best route: shared text arrives
+    in the Intent, so no clipboard read happens and the restriction never
+    applies.
+  - the Quick Settings tile, or the button in the app.
+  - copying while the FedoraLink app is open, which syncs automatically —
+    legal only because the app holds focus.
+
+  PC → phone is always automatic.
 - **The persistent notification on the phone is mandatory.** Android kills
   background processes holding sockets; a foreground service is the only way
   to stay connected, and it must show a notification. It's set to minimum
   importance so it sits collapsed at the bottom of the shade.
-- **Clipboard polling on the desktop.** Wayland has no clipboard-change
-  signal, and `wl-paste --watch` depends on a protocol Mutter has been
-  inconsistent about. The daemon polls every 2 seconds instead, and only
-  while a phone is connected.
+- **Desktop clipboard reads happen in the shell, not the daemon.** Wayland
+  has no clipboard-change signal, and `wl-paste --watch` needs the
+  `data-control` protocol, which Mutter still does not implement (rechecked
+  on Mutter 50). Polling `wl-paste` is not a viable substitute: without
+  `data-control` every run has to map a real `xdg_toplevel` to take focus,
+  so a timer-driven poll put a `wl-clipboard` window in the dock and took it
+  away again every two seconds.
+
+  So the GNOME Shell extension does the clipboard I/O. The shell *is* the
+  compositor — it reads and writes the selection with no client, no window
+  and no focus requirement, and Mutter gives it a real `owner-changed`
+  signal, which makes desktop → phone sync event-driven rather than polled.
+  The daemon falls back to `wl-copy` only when the extension isn't running.
 
 ## Development
 

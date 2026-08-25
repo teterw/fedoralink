@@ -1,6 +1,7 @@
 package dev.fedoralink.android
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 
@@ -11,14 +12,26 @@ import android.widget.Toast
  * service simply cannot do this. Becoming the foreground activity —
  * briefly, from a launcher shortcut or Quick Settings tile — is the
  * supported way to get at it.
+ *
+ * It also answers ACTION_SEND, which is the better route where an app
+ * offers it: shared text arrives in the Intent, so no clipboard read
+ * happens at all and the restriction never applies.
  */
 class ClipboardSendActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val shared = intent
+            ?.takeIf { it.action == Intent.ACTION_SEND }
+            ?.getCharSequenceExtra(Intent.EXTRA_TEXT)
+            ?.toString()
+
         val message = when {
             !LinkManager.isConnected() -> getString(R.string.clipboard_not_connected)
+            !shared.isNullOrEmpty() ->
+                if (ClipboardBridge.sendText(shared)) getString(R.string.clipboard_sent)
+                else getString(R.string.clipboard_not_connected)
             ClipboardBridge.sendToPc(this) -> getString(R.string.clipboard_sent)
             else -> getString(R.string.clipboard_empty)
         }
