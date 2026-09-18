@@ -25,15 +25,43 @@ Quick Settings panel next to Wi-Fi and brightness, the way GSConnect does.
 | Find My Phone (rings through silent/DND) | PC → Phone |
 | Auto-reconnect when the phone comes back in range | — |
 
-## What it deliberately does not do
+## What it doesn't do
 
-Bluetooth RFCOMM carries roughly **100–250 KB/s**. That's ample for
-notifications and clipboard text, and hopeless for anything else. So there is
-no screen mirroring, no photo sync, and no bulk file transfer — those need
-Wi-Fi, and adding them would mean giving up the "works without a network"
-property that is the entire point of this project.
+No screen mirroring, no photo sync. Bluetooth RFCOMM carries roughly
+**100–250 KB/s** — ample for notifications and clipboard text, hopeless for
+anything bulk. A 100 MB video would take about eleven minutes.
 
-A 100 MB video would take about eleven minutes. Use KDE Connect for that.
+File transfer was on that list for the same reason, and no longer is. The
+speed limit is real, so rather than refuse the feature outright the plan is a
+LAN transport for when both devices are on the same network, with Bluetooth
+staying the fallback — that keeps the "works without a network" property that
+is the point of this project. Neither is built yet; see
+[Beyond Bluetooth](ROADMAP.md#milestone-4--beyond-bluetooth). Until then, use
+KDE Connect for bulk transfers.
+
+## Roadmap
+
+| Milestone | Feature | Status |
+|---|---|---|
+| 1 | Stop Ringing | Designed |
+| 1 | Fix `Ringer.stop()` not cancelling vibration | Designed |
+| 2 | Handshake authentication | Planned |
+| 2 | Tests for the protocol layer | Planned |
+| 3 | Low-battery warning, ring-the-PC, lock-on-leave | Planned |
+| 3 | Notification replies | Planned |
+| 3 | Media control | Idea |
+| 4 | LAN/TCP transport | Planned |
+| 4 | File transfer | Planned |
+
+Full plan, with the approach and acceptance criteria for each item, is in
+[ROADMAP.md](ROADMAP.md).
+
+> **If you change the project, update the progress in the same commit.**
+> Flip the status of what you worked on in
+> [ROADMAP.md](ROADMAP.md), tick the acceptance criteria you satisfied, and
+> keep the table above in agreement with it. A roadmap that lags behind the
+> code tells people things that aren't true — treat the status line as part
+> of the change, not paperwork after it.
 
 ## Install
 
@@ -156,7 +184,9 @@ cd android && gradle assembleDebug
 ```
 
 Adding a feature means adding a packet type to both `protocol.py` and
-`Protocol.kt`, then a plugin in `daemon/fedoralink/plugins/`.
+`Protocol.kt`, then a plugin in `daemon/fedoralink/plugins/`. When you do,
+update its entry in [ROADMAP.md](ROADMAP.md) and the summary table under
+[Roadmap](#roadmap).
 
 ## Uninstall
 
