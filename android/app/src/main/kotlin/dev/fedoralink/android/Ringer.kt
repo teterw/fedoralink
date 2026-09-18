@@ -28,6 +28,12 @@ object Ringer {
     private val handler = Handler(Looper.getMainLooper())
     private val stopRunnable = Runnable { stop(null) }
 
+    // The waveform repeats until something cancels it, so the vibrator has
+    // to be reachable from stop() — not only from its own delayed callback,
+    // or an early stop leaves the phone buzzing with the ringtone silent.
+    private var vibrator: Vibrator? = null
+    private val cancelVibrationRunnable = Runnable { cancelVibration() }
+
     fun ring(context: Context) {
         stop(context)
 
@@ -62,6 +68,9 @@ object Ringer {
 
     fun stop(context: Context?) {
         handler.removeCallbacks(stopRunnable)
+        handler.removeCallbacks(cancelVibrationRunnable)
+        cancelVibration()
+
         ringtone?.runCatching { stop() }
         ringtone = null
 
@@ -75,6 +84,11 @@ object Ringer {
         }
     }
 
+    private fun cancelVibration() {
+        vibrator?.runCatching { cancel() }
+        vibrator = null
+    }
+
     private fun vibrate(context: Context) {
         val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             context.getSystemService(VibratorManager::class.java)?.defaultVibrator
@@ -83,10 +97,12 @@ object Ringer {
             context.getSystemService(Vibrator::class.java)
         } ?: return
 
+        this.vibrator = vibrator
+
         val pattern = longArrayOf(0, 400, 300, 400, 300)
         runCatching {
             vibrator.vibrate(VibrationEffect.createWaveform(pattern, 0))
         }
-        handler.postDelayed({ runCatching { vibrator.cancel() } }, RING_DURATION_MS)
+        handler.postDelayed(cancelVibrationRunnable, RING_DURATION_MS)
     }
 }
