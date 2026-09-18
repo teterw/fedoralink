@@ -39,6 +39,7 @@ What's built, what's next, and what each item actually involves.
 | Phone battery in Quick Settings | Phone → PC | `plugins/battery.py`, `BatteryReporter.kt` |
 | Find My Phone (rings through silent/DND) | PC → Phone | `plugins/ping.py`, `Ringer.kt` |
 | Auto-reconnect when the phone comes back in range | — | `daemon.py`, `LinkManager.kt` |
+| CI Android job fixed (`setup-android` v3 → v4) | — | `.github/workflows/` |
 
 ---
 
@@ -72,6 +73,11 @@ at 1.
 - [ ] Disconnecting mid-ring doesn't leave the item stranded in the menu
 - [ ] An old phone build receiving `{"ring": false}` does nothing and stays
       connected
+
+**Released in v0.4.0** (2026-09-18) — but the status stays **In progress**,
+not **Shipped**: the legend reserves that for what has been seen working on a
+real phone, and none of the criteria above have been checked yet. Whoever
+tests it first should tick them and flip both statuses.
 
 **Known limitation.** If the link drops mid-ring and comes back inside the 15
 seconds, the item does not reappear — the desktop has no way to know the phone
@@ -242,6 +248,14 @@ Send files both ways, with a chunked packet type and progress reporting.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-18** — Released as v0.4.0 with a signed APK. Getting there meant
+  fixing CI first: `android-actions/setup-android@v3` defaults to installing
+  the `tools` package, which Google has removed from the SDK repository, so
+  `sdkmanager` exited 1 and the Android job had been dying before compiling
+  anything — on every push, for some time. `release.yml` shared the step, so
+  the tag would have produced no APK. Bumped to v4, which drops `tools` from
+  its defaults. The green Android job is also the first time this code has
+  been compiled at all.
 - **2026-09-18** — Stop Ringing and the vibration fix are written. Static
   checks pass (`compileall`, `ruff`, and the extension parses as an ES
   module); the Kotlin is unbuilt locally — no Android SDK on this machine, so
