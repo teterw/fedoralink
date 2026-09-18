@@ -7,6 +7,7 @@
 
 import GObject from 'gi://GObject';
 import Gio from 'gi://Gio';
+import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
 
@@ -17,10 +18,15 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 const BUS_NAME = 'org.fedoralink.Daemon';
 const OBJECT_PATH = '/org/fedoralink/Daemon';
 
+// Must match RING_DURATION_MS in Ringer.kt. The phone silences itself when
+// its own timer expires, so this is when "Stop Ringing" stops being useful.
+const RING_DURATION_MS = 15000;
+
 const DaemonInterface = `
 <node>
   <interface name="org.fedoralink.Daemon">
     <method name="Ping"/>
+    <method name="StopRinging"/>
     <method name="SendClipboard"/>
     <method name="Reconnect"/>
     <method name="SetClipboard">
@@ -146,12 +152,21 @@ class FedoraLinkToggle extends QuickMenuToggle {
         });
 
         this._proxy = null;
+        this._ringTimeoutId = 0;
 
         this.menu.setHeader('phone-symbolic', _('FedoraLink'), _('Not connected'));
 
         this._pingItem = this.menu.addAction(_('Find My Phone'), () => {
             this._call('Ping');
+            this._showStopRinging();
         });
+        // Nothing to stop until you've started a ring, so this stays out
+        // of the menu rather than sitting there inert.
+        this._stopRingItem = this.menu.addAction(_('Stop Ringing'), () => {
+            this._call('StopRinging');
+            this._hideStopRinging();
+        });
+        this._stopRingItem.visible = false;
         // Set by the indicator once the bridge exists; falls back to the
         // daemon's own resend if it doesn't.
         this.onSendClipboard = null;
@@ -183,10 +198,37 @@ class FedoraLinkToggle extends QuickMenuToggle {
         this._proxy[`${method}Remote`](() => {});
     }
 
+    _showStopRinging() {
+        this._stopRingItem.visible = true;
+
+        if (this._ringTimeoutId)
+            GLib.Source.remove(this._ringTimeoutId);
+
+        // Drop the item when the phone's own timer runs out, so it never
+        // offers to stop a ring that already stopped itself.
+        this._ringTimeoutId = GLib.timeout_add(
+            GLib.PRIORITY_DEFAULT, RING_DURATION_MS, () => {
+                this._ringTimeoutId = 0;
+                this._stopRingItem.visible = false;
+                return GLib.SOURCE_REMOVE;
+            });
+    }
+
+    _hideStopRinging() {
+        if (this._ringTimeoutId) {
+            GLib.Source.remove(this._ringTimeoutId);
+            this._ringTimeoutId = 0;
+        }
+        this._stopRingItem.visible = false;
+    }
+
     _setUnavailable(reason) {
         this.checked = false;
         this.subtitle = reason;
         this.iconName = 'phone-symbolic';
+
+        // Whatever was ringing, we can no longer stop it from here.
+        this._hideStopRinging();
 
         for (const item of [this._pingItem, this._clipboardItem])
             item.reactive = false;
@@ -228,6 +270,12 @@ class FedoraLinkToggle extends QuickMenuToggle {
 
         for (const item of [this._pingItem, this._clipboardItem, this._reconnectItem])
             item.reactive = true;
+    }
+
+    destroy() {
+        // A live timeout would fire into a destroyed toggle on disable.
+        this._hideStopRinging();
+        super.destroy();
     }
 });
 

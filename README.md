@@ -43,8 +43,8 @@ KDE Connect for bulk transfers.
 
 | Milestone | Feature | Status |
 |---|---|---|
-| 1 | Stop Ringing | Designed |
-| 1 | Fix `Ringer.stop()` not cancelling vibration | Designed |
+| 1 | Stop Ringing | In progress |
+| 1 | Fix `Ringer.stop()` not cancelling vibration | In progress |
 | 2 | Handshake authentication | Planned |
 | 2 | Tests for the protocol layer | Planned |
 | 3 | Low-battery warning, ring-the-PC, lock-on-leave | Planned |

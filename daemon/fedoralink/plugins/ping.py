@@ -19,6 +19,16 @@ class PingPlugin(Plugin):
         """Make the phone ring at full volume even if it's silenced."""
         return self.send(PING, {"ring": True})
 
+    def stop_ringing(self) -> bool:
+        """Silence a ring already in progress, before its own timeout.
+
+        Same packet type as ``ring_phone`` rather than a new one: a phone
+        built before this existed only acts on ``ring: true``, so it
+        ignores this and stays connected instead of choking on an
+        unknown type.
+        """
+        return self.send(PING, {"ring": False})
+
     def on_packet(self, packet: dict[str, Any]) -> None:
         message = packet["body"].get("message") or "Ping from your phone"
         self.daemon.notifications.show_local(

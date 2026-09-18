@@ -44,7 +44,7 @@ What's built, what's next, and what each item actually involves.
 
 ## Milestone 1 — Finish Find My Phone
 
-### Stop Ringing — **Designed**
+### Stop Ringing — **In progress**
 
 A second Quick Settings item that silences the phone before the 15-second
 timeout expires. It appears under **Find My Phone** once you've pressed that,
@@ -73,7 +73,12 @@ at 1.
 - [ ] An old phone build receiving `{"ring": false}` does nothing and stays
       connected
 
-### Fix `Ringer.stop()` not cancelling vibration — **Designed**
+**Known limitation.** If the link drops mid-ring and comes back inside the 15
+seconds, the item does not reappear — the desktop has no way to know the phone
+is still ringing. The phone's own timer still silences it. Fixing this properly
+needs the phone to report ring state, which isn't worth a packet type yet.
+
+### Fix `Ringer.stop()` not cancelling vibration — **In progress**
 
 `Ringer.vibrate()` starts a waveform with repeat index `0`, so it buzzes until
 something cancels it, and that cancel is its own `postDelayed` callback.
@@ -84,8 +89,8 @@ seconds. The moment you can stop early, the ringtone goes quiet and the phone
 keeps buzzing for the remainder. Ships with Stop Ringing, since that's what
 exposes it.
 
-- [ ] Hold the vibrator cancel in a named `Runnable`, like `stopRunnable`
-- [ ] Cancel the vibrator inside `stop()`
+- [x] Hold the vibrator cancel in a named `Runnable`, like `stopRunnable`
+- [x] Cancel the vibrator inside `stop()`
 
 ---
 
@@ -237,6 +242,12 @@ Send files both ways, with a chunked packet type and progress reporting.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-18** — Stop Ringing and the vibration fix are written. Static
+  checks pass (`compileall`, `ruff`, and the extension parses as an ES
+  module); the Kotlin is unbuilt locally — no Android SDK on this machine, so
+  CI's `assembleDebug` is the first real compile. None of the Stop Ringing
+  acceptance criteria are ticked yet: every one of them needs a running shell
+  and a real phone to observe.
 - **2026-09-18** — Roadmap created. Milestone 4 was agreed as a deliberate
   revision of the README's "no file transfer" stance: the Bluetooth speed
   limit is real, so the answer is a second transport rather than a permanent

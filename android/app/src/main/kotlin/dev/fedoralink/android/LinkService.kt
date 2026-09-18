@@ -83,6 +83,7 @@ class LinkService : Service() {
 
         LinkManager.on(Protocol.PING) { body ->
             if (body.optBoolean("ring", false)) Ringer.ring(applicationContext)
+            else Ringer.stop(applicationContext)
         }
         LinkManager.on(Protocol.CLIPBOARD) { body ->
             ClipboardBridge.applyFromPc(applicationContext, body)

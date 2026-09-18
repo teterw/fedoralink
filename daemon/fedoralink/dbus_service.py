@@ -26,6 +26,7 @@ INTROSPECTION = """
 <node>
   <interface name='org.fedoralink.Daemon'>
     <method name='Ping'/>
+    <method name='StopRinging'/>
     <method name='SendClipboard'/>
     <method name='Reconnect'/>
     <!-- The shell extension reads and writes the selection on our behalf;
@@ -104,6 +105,8 @@ class DBusService:
     ) -> None:
         if method == "Ping":
             self.daemon.ping.ring_phone()
+        elif method == "StopRinging":
+            self.daemon.ping.stop_ringing()
         elif method == "SendClipboard":
             self.daemon.clipboard.send_current()
         elif method == "SetClipboard":
