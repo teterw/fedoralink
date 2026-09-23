@@ -49,16 +49,20 @@ KDE Connect for bulk transfers.
 
 | Milestone | Feature | Status |
 |---|---|---|
-| 1 | Stop Ringing | In progress |
-| 1 | Fix `Ringer.stop()` not cancelling vibration | In progress |
-| 2 | Handshake authentication | In progress |
+| 1 | Stop Ringing | Built (in v0.4.0) |
+| 1 | Fix `Ringer.stop()` not cancelling vibration | Built (in v0.4.0) |
+| 2 | Handshake authentication | Built |
 | 2 | Tests for the protocol layer | Shipped |
 | 2 | Kotlin `Protocol.Reader` tests | Planned |
-| 3 | Low-battery warning, ring-the-PC, lock-on-leave | In progress |
-| 3 | Notification replies | In progress |
-| 3 | Media control | In progress |
-| 4 | LAN/TCP transport | In progress |
-| 4 | File transfer | In progress |
+| 3 | Low-battery warning, ring-the-PC, lock-on-leave | Built |
+| 3 | Notification replies | Built |
+| 3 | Media control | Built |
+| 4 | LAN/TCP transport | Built |
+| 4 | File transfer | Built |
+
+**Built** means implemented, tested where testable and CI-green — but not yet
+run on real hardware. **Shipped** means someone has used it on a phone. The
+distinction is deliberate: most of this was written without a phone to hand.
 
 Full plan, with the approach and acceptance criteria for each item, is in
 [ROADMAP.md](ROADMAP.md).

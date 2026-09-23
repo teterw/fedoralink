@@ -23,10 +23,17 @@ What's built, what's next, and what each item actually involves.
 | | Meaning |
 |---|---|
 | **Shipped** | Merged, works on a real phone, documented in the README |
+| **Built** | Implemented, tested where testable, CI-green — but never run on real hardware |
 | **In progress** | Someone is actively writing it |
 | **Designed** | The approach is settled and written down below; nobody has started |
 | **Planned** | Agreed it should exist; the approach is still open |
 | **Idea** | Worth considering, not committed to |
+
+**Built is not Shipped, and the gap is the point.** Most of this roadmap was
+implemented without a phone or an Android SDK to hand. The code compiles and the
+tests pass; that is not the same as knowing it works. Anything still marked
+**Built** is waiting on someone to install it and use it, at which point the
+acceptance criteria can be ticked and the status moved.
 
 ---
 
@@ -47,7 +54,7 @@ What's built, what's next, and what each item actually involves.
 
 ## Milestone 1 — Finish Find My Phone
 
-### Stop Ringing — **In progress**
+### Stop Ringing — **Built**
 
 A second Quick Settings item that silences the phone before the 15-second
 timeout expires. It appears under **Find My Phone** once you've pressed that,
@@ -76,17 +83,17 @@ at 1.
 - [ ] An old phone build receiving `{"ring": false}` does nothing and stays
       connected
 
-**Released in v0.4.0** (2026-09-18) — but the status stays **In progress**,
-not **Shipped**: the legend reserves that for what has been seen working on a
-real phone, and none of the criteria above have been checked yet. Whoever
-tests it first should tick them and flip both statuses.
+**Released in v0.4.0** (2026-09-18), so this one is in users' hands — but the
+criteria above are still unticked, because nobody has confirmed the button
+actually silences a ringing phone. Whoever tests it first should tick them and
+move it to **Shipped**.
 
 **Known limitation.** If the link drops mid-ring and comes back inside the 15
 seconds, the item does not reappear — the desktop has no way to know the phone
 is still ringing. The phone's own timer still silences it. Fixing this properly
 needs the phone to report ring state, which isn't worth a packet type yet.
 
-### Fix `Ringer.stop()` not cancelling vibration — **In progress**
+### Fix `Ringer.stop()` not cancelling vibration — **Built**
 
 `Ringer.vibrate()` starts a waveform with repeat index `0`, so it buzzes until
 something cancels it, and that cancel is its own `postDelayed` callback.
@@ -104,7 +111,7 @@ exposes it.
 
 ## Milestone 2 — Make the link trustworthy
 
-### Handshake authentication — **In progress**
+### Handshake authentication — **Built**
 
 Today the identity handshake exchanges `deviceName`, `deviceType`,
 `protocolVersion` and `capabilities`, and nothing else. All trust rests on
@@ -168,7 +175,7 @@ it is pinning real behaviour rather than passing vacuously.
 
 ## Milestone 3 — Things the data already supports
 
-### Quick wins bundle — **In progress**
+### Quick wins bundle — **Built**
 
 Three small features where the plumbing is already in place.
 
@@ -211,7 +218,7 @@ a `gradle test` step in CI.
 - [ ] Malformed packet is skipped without dropping the stream
 - [ ] `gradle test` runs in CI
 
-### Notification replies — **In progress**
+### Notification replies — **Built**
 
 Answer a message from the desktop notification instead of picking up the
 phone. `NOTIFICATION_ACTION` already exists and carries only `dismiss`, so the
@@ -245,7 +252,7 @@ Unverified on hardware. The modal dialog in particular has never been on a
 screen — `ModalDialog` and `St.Entry` are stable API across shell 45–50, but
 that is reasoning, not evidence.
 
-### Media control — **In progress**
+### Media control — **Built**
 
 **Scoped: control the phone's playback from the desktop**, over RFCOMM. The
 direction was decided by evidence rather than preference — Bluetooth's own
@@ -284,7 +291,7 @@ the fallback that keeps the "works without a network" promise intact.
 Do these in order — file transfer over RFCOMM alone would be a bad first
 impression of the feature.
 
-### LAN/TCP transport — **In progress**
+### LAN/TCP transport — **Built**
 
 A second transport used when both devices are on the same network, falling
 back to Bluetooth when they aren't.
@@ -330,7 +337,7 @@ case 1 on both sides, and the Kotlin tests open ciphertext the Python side
 actually produced, so the two implementations provably interoperate. The socket
 plumbing around it has never carried a byte between two machines.
 
-### File transfer — **In progress** (built both sides, untested on hardware)
+### File transfer — **Built**
 
 Chunked over the existing NDJSON stream, base64 inside `fedoralink.file.*`
 packets. That costs a third more bytes than a binary framing, which is
@@ -386,6 +393,12 @@ cleanly", and failing cleanly is the half that's built.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Every planned item is now implemented, which exposed a flaw
+  in this file's own legend: eight items sat at **In progress**, defined as
+  "someone is actively writing it", when nobody was. There was no state for
+  "code complete, never run". Added **Built** and reclassified, because a
+  roadmap that overstates its own confidence is exactly what the rule at the
+  top exists to prevent.
 - **2026-09-23** — Added a CLI, which turned out to be the cheapest way to make
   any of this testable by hand. `fedoralink status` run against the live daemon
   found a real bug in its own output: the old installed daemon has no
