@@ -47,8 +47,20 @@ INTROSPECTION = """
     <method name='SetClipboardBridge'>
       <arg name='active' type='b' direction='in'/>
     </method>
+    <!-- GNOME Shell's notification server has no inline reply, so the
+         extension collects the text and hands it back here. -->
+    <method name='SendReply'>
+      <arg name='key' type='s' direction='in'/>
+      <arg name='text' type='s' direction='in'/>
+    </method>
     <signal name='ClipboardChanged'>
       <arg name='content' type='s'/>
+    </signal>
+    <!-- The user pressed Reply on a mirrored notification; the extension
+         should ask them what to say. -->
+    <signal name='ReplyRequested'>
+      <arg name='key' type='s'/>
+      <arg name='title' type='s'/>
     </signal>
     <property name='Connected' type='b' access='read'/>
     <property name='Authenticated' type='b' access='read'/>
@@ -122,6 +134,9 @@ class DBusService:
         elif method == "SetClipboard":
             content, force = params.unpack()
             self.daemon.clipboard.set_from_shell(content, force)
+        elif method == "SendReply":
+            key, text = params.unpack()
+            self.daemon.notifications.reply(key, text)
         elif method == "SetClipboardBridge":
             (active,) = params.unpack()
             self._set_bridge(sender, active)
@@ -205,6 +220,21 @@ class DBusService:
             )
         except GLib.Error as exc:
             log.debug("ClipboardChanged emit failed: %s", exc)
+
+    def emit_reply_requested(self, key: str, title: str) -> None:
+        """Ask the shell extension to collect a reply from the user."""
+        if self._bus is None:
+            return
+        try:
+            self._bus.emit_signal(
+                self._bridge_sender,
+                OBJECT_PATH,
+                INTERFACE,
+                "ReplyRequested",
+                GLib.Variant("(ss)", (key, title)),
+            )
+        except GLib.Error as exc:
+            log.debug("ReplyRequested emit failed: %s", exc)
 
     def emit_changed(self) -> None:
         """Push current state to the shell extension."""

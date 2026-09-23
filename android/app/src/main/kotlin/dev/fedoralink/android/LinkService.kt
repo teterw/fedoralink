@@ -92,8 +92,12 @@ class LinkService : Service() {
             NotificationRelay.dismiss(body.optString("key"))
         }
         LinkManager.on(Protocol.NOTIFICATION_ACTION) { body ->
-            if (body.optString("action") == "dismiss") {
-                NotificationRelay.dismiss(body.optString("key"))
+            when (body.optString("action")) {
+                "dismiss" -> NotificationRelay.dismiss(body.optString("key"))
+                "reply" -> NotificationRelay.reply(
+                    body.optString("key"),
+                    body.optString("text"),
+                )
             }
         }
     }

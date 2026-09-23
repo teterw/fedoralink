@@ -209,19 +209,39 @@ a `gradle test` step in CI.
 - [ ] Malformed packet is skipped without dropping the stream
 - [ ] `gradle test` runs in CI
 
-### Notification replies — **Planned**
+### Notification replies — **In progress**
 
 Answer a message from the desktop notification instead of picking up the
 phone. `NOTIFICATION_ACTION` already exists and carries only `dismiss`, so the
 packet type and the key mapping in `plugins/notification.py` are already there.
 
-Needs Android's `RemoteInput` on the phone side and a text entry on the
-freedesktop notification, which not every notification daemon supports — GNOME
-Shell does.
+**The original plan here was wrong.** It assumed a text entry could go on the
+freedesktop notification itself. Checked against the live server:
+GNOME Shell 50.4 advertises `actions, body, body-markup, icon-static,
+persistence, sound` and nothing else — no `inline-reply` — and the interface
+carries no `NotificationReplied` signal, only `ActionInvoked`. Inline replies
+are a KDE extension to the spec.
 
-- [ ] Replying from the desktop delivers the message through the originating app
-- [ ] Notifications without a reply action don't grow a dead text box
-- [ ] A failed reply says so, rather than silently dropping the text
+**Revised approach.** The notification gets an ordinary *Reply* button. Pressing
+it makes the daemon emit `ReplyRequested` over D-Bus; the shell extension opens
+a modal dialog with a text entry and calls `SendReply` back. This is the same
+division the clipboard already uses and for the same reason — the extension is
+the compositor, so it can put UI on screen that a background daemon cannot.
+Android's `RemoteInput` does the delivery on the phone side.
+
+- [x] Replying from the desktop delivers the message through the originating
+      app — via the notification's own `RemoteInput`, the same mechanism the
+      phone's shade uses
+- [x] Notifications without a reply action don't grow a dead text box — the
+      phone reports `canReply` per notification, including when an app *loses*
+      its reply action on an update
+- [x] A failed reply says so — the phone sends `reply-failed` and the desktop
+      raises an urgent notification. A silently dropped reply is the worst
+      outcome: the user believes they answered someone and didn't.
+
+Unverified on hardware. The modal dialog in particular has never been on a
+screen — `ModalDialog` and `St.Entry` are stable API across shell 45–50, but
+that is reasoning, not evidence.
 
 ### Media control — **Idea**
 
@@ -281,6 +301,14 @@ Send files both ways, with a chunked packet type and progress reporting.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Notification replies needed a redesign before they could be
+  built. The plan assumed a text entry could sit on the freedesktop
+  notification; GNOME Shell 50.4 advertises no `inline-reply` and exposes no
+  `NotificationReplied` signal, so that is a KDE extension to the spec, not
+  something to build on. Checked with `busctl` against the running server
+  rather than assumed. The reply box now lives in the shell extension, which
+  can show one because it *is* the compositor — the same argument the README
+  already makes about clipboard I/O.
 - **2026-09-23** — Authentication landed. Two design notes worth keeping. The
   fingerprint is a hash of the secret, not a slice of it — the code appears on
   a lock screen, where notifications land, and showing key bytes there would

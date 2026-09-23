@@ -20,11 +20,12 @@ FDO_IFACE = "org.freedesktop.Notifications"
 REASON_DISMISSED_BY_USER = 2
 
 DISMISS_ACTION = "fedoralink-dismiss"
+REPLY_ACTION = "fedoralink-reply"
 
 
 class NotificationPlugin(Plugin):
     name = "notification"
-    handles = (NOTIFICATION, NOTIFICATION_DISMISS)
+    handles = (NOTIFICATION, NOTIFICATION_DISMISS, NOTIFICATION_ACTION)
 
     def __init__(self, daemon) -> None:
         super().__init__(daemon)
@@ -35,6 +36,14 @@ class NotificationPlugin(Plugin):
         # remote notification key -> local freedesktop notification id
         self._remote_to_local: dict[str, int] = {}
         self._local_to_remote: dict[int, str] = {}
+
+        # Keys the phone says carry a reply action, so Reply is only
+        # offered where it can actually deliver something.
+        self._repliable: set[str] = set()
+
+        # local id -> a label for the reply dialog, so it can say what it
+        # is replying to.
+        self._titles: dict[int, str] = {}
 
         # Local ids we closed ourselves because the phone told us to. The
         # resulting NotificationClosed signal must not be echoed back, or
@@ -73,12 +82,24 @@ class NotificationPlugin(Plugin):
             self._close_local(local_id)
         self._remote_to_local.clear()
         self._local_to_remote.clear()
+        self._repliable.clear()
+        self._titles.clear()
 
     def on_packet(self, packet: dict[str, Any]) -> None:
         if packet["type"] == NOTIFICATION:
             self._mirror(packet["body"])
+        elif packet["type"] == NOTIFICATION_ACTION:
+            self._on_remote_action(packet["body"])
         else:
             self._dismiss_locally(packet["body"].get("key"))
+
+    def _on_remote_action(self, body: dict[str, Any]) -> None:
+        if body.get("action") != "reply-failed":
+            return
+        # A silently dropped reply is the worst outcome here — the user
+        # believes they answered someone, and they didn't.
+        reason = body.get("reason") or "the phone could not deliver it"
+        self.show_local(summary="Reply not delivered", body=str(reason), urgent=True)
 
     def _mirror(self, body: dict[str, Any]) -> None:
         key = body.get("key")
@@ -94,6 +115,16 @@ class NotificationPlugin(Plugin):
         # old one in place instead of stacking a duplicate.
         replaces_id = self._remote_to_local.get(key, 0)
 
+        actions = [DISMISS_ACTION, "Dismiss on phone"]
+        if body.get("canReply"):
+            self._repliable.add(key)
+            # First in the list, so it reads as the primary button.
+            actions = [REPLY_ACTION, "Reply", *actions]
+        else:
+            # An app can lose its reply action between updates; don't leave
+            # a button behind with nothing to deliver through.
+            self._repliable.discard(key)
+
         hints = {
             # Groups mirrored notifications under FedoraLink in GNOME.
             "desktop-entry": GLib.Variant("s", "org.fedoralink.FedoraLink"),
@@ -108,7 +139,7 @@ class NotificationPlugin(Plugin):
                 "phone-symbolic",
                 title,
                 text,
-                [DISMISS_ACTION, "Dismiss on phone"],
+                actions,
                 hints,
                 # 0 would mean "never expire" — but these are mirrors of
                 # something already on the phone, so let them time out.
@@ -128,6 +159,7 @@ class NotificationPlugin(Plugin):
         local_id = result.unpack()[0]
         self._remote_to_local[key] = local_id
         self._local_to_remote[local_id] = key
+        self._titles[local_id] = f"{app_name}: {title}" if title else app_name
 
     def ask(
         self,
@@ -249,9 +281,30 @@ class NotificationPlugin(Plugin):
             return
 
         key = self._local_to_remote.get(local_id)
-        if key is None or action != DISMISS_ACTION:
+        if key is None:
             return
-        self.send(NOTIFICATION_ACTION, {"key": key, "action": "dismiss"})
+
+        if action == DISMISS_ACTION:
+            self.send(NOTIFICATION_ACTION, {"key": key, "action": "dismiss"})
+        elif action == REPLY_ACTION:
+            # GNOME Shell's notification server has no inline reply — its
+            # capabilities are actions/body/body-markup/icon-static/
+            # persistence/sound, with no NotificationReplied signal. So the
+            # shell extension puts the text box on screen instead. It is
+            # the compositor, which is the same reason it owns clipboard
+            # I/O. See ReplyRequested in dbus_service.py.
+            self.daemon.dbus.emit_reply_requested(
+                key, self._titles.get(local_id, "")
+            )
+
+    def reply(self, key: str, text: str) -> None:
+        """Deliver a reply the shell extension collected from the user."""
+        if key not in self._repliable:
+            log.warning("ignoring reply to %s, which is not repliable", key)
+            return
+        if not text:
+            return
+        self.send(NOTIFICATION_ACTION, {"key": key, "action": "reply", "text": text})
 
     def show_local(
         self,

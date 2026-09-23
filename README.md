@@ -25,6 +25,7 @@ Quick Settings panel next to Wi-Fi and brightness, the way GSConnect does.
 | Find My Phone, with Stop Ringing | PC → Phone |
 | Ring My PC (audible, for when the laptop is what's lost) | Phone → PC |
 | Low-battery warning on the desktop | Phone → PC |
+| Reply to a message from the desktop | PC → Phone |
 | Lock the desktop when the phone leaves range (off by default) | — |
 | Auto-reconnect when the phone comes back in range | — |
 
@@ -52,7 +53,7 @@ KDE Connect for bulk transfers.
 | 2 | Tests for the protocol layer | Shipped |
 | 2 | Kotlin `Protocol.Reader` tests | Planned |
 | 3 | Low-battery warning, ring-the-PC, lock-on-leave | In progress |
-| 3 | Notification replies | Planned |
+| 3 | Notification replies | In progress |
 | 3 | Media control | Idea |
 | 4 | LAN/TCP transport | Planned |
 | 4 | File transfer | Planned |

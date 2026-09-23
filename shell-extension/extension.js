@@ -11,9 +11,12 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import St from 'gi://St';
 
+import Clutter from 'gi://Clutter';
+
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {QuickMenuToggle, SystemIndicator} from 'resource:///org/gnome/shell/ui/quickSettings.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 
 const BUS_NAME = 'org.fedoralink.Daemon';
 const OBJECT_PATH = '/org/fedoralink/Daemon';
@@ -39,8 +42,16 @@ const DaemonInterface = `
     <method name="SetClipboardBridge">
       <arg name="active" type="b" direction="in"/>
     </method>
+    <method name="SendReply">
+      <arg name="key" type="s" direction="in"/>
+      <arg name="text" type="s" direction="in"/>
+    </method>
     <signal name="ClipboardChanged">
       <arg name="content" type="s"/>
+    </signal>
+    <signal name="ReplyRequested">
+      <arg name="key" type="s"/>
+      <arg name="title" type="s"/>
     </signal>
     <property name="Connected" type="b" access="read"/>
     <property name="Authenticated" type="b" access="read"/>
@@ -63,6 +74,65 @@ function batteryIconName(level, charging) {
         ? `battery-level-${step}-charging-symbolic`
         : `battery-level-${step}-symbolic`;
 }
+
+/* The reply box GNOME's notification server can't provide.
+ *
+ * org.freedesktop.Notifications on GNOME Shell advertises actions, body,
+ * body-markup, icon-static, persistence and sound — no inline-reply, and
+ * no NotificationReplied signal. Inline replies are a KDE extension to the
+ * spec, so a Reply button on a notification can only start a conversation,
+ * not finish one.
+ *
+ * The extension can finish it, for the same reason it does clipboard I/O:
+ * it runs inside the compositor, so it can put a focused text entry on
+ * screen without being an application with a window.
+ */
+const ReplyDialog = GObject.registerClass(
+class ReplyDialog extends ModalDialog.ModalDialog {
+    _init(title, onSubmit) {
+        super._init({styleClass: 'run-dialog'});
+
+        this._onSubmit = onSubmit;
+
+        this.contentLayout.add_child(new St.Label({
+            text: title ? _('Reply to %s').format(title) : _('Reply'),
+            style_class: 'run-dialog-label',
+        }));
+
+        this._entry = new St.Entry({
+            can_focus: true,
+            hint_text: _('Type your reply…'),
+            style_class: 'run-dialog-entry',
+        });
+        this._entry.clutter_text.set_activatable(true);
+        this._entry.clutter_text.connect('activate', () => this._submit());
+        this.contentLayout.add_child(this._entry);
+
+        this.setButtons([
+            {
+                label: _('Cancel'),
+                action: () => this.close(),
+                key: Clutter.KEY_Escape,
+            },
+            {
+                label: _('Send'),
+                action: () => this._submit(),
+                default: true,
+            },
+        ]);
+
+        this.setInitialKeyFocus(this._entry.clutter_text);
+    }
+
+    _submit() {
+        const text = this._entry.get_text().trim();
+        this.close();
+        // An empty reply is a cancel, not a message worth sending to
+        // whoever is waiting on the other end.
+        if (text)
+            this._onSubmit(text);
+    }
+});
 
 /* Clipboard I/O on the daemon's behalf.
  *
@@ -297,6 +367,7 @@ class FedoraLinkIndicator extends SystemIndicator {
         super._init();
 
         this._bridge = null;
+        this._replyId = null;
         this._indicator = this._addIndicator();
         this._indicator.iconName = 'phone-symbolic';
         this._indicator.visible = false;
@@ -314,6 +385,9 @@ class FedoraLinkIndicator extends SystemIndicator {
                 this._toggle.setProxy(proxy);
                 this._bridge = new ClipboardBridge(proxy);
                 this._toggle.onSendClipboard = () => this._bridge.sendCurrent();
+                this._replyId = proxy.connectSignal(
+                    'ReplyRequested', (_p, _s, [key, title]) =>
+                        this._askForReply(key, title));
                 this._sync();
             });
 
@@ -321,6 +395,13 @@ class FedoraLinkIndicator extends SystemIndicator {
         // Fires when the daemon starts or stops, so the toggle reflects
         // "not running" without the user having to poke it.
         this._ownerId = this._proxy.connect('notify::g-name-owner', () => this._sync());
+    }
+
+    _askForReply(key, title) {
+        const dialog = new ReplyDialog(title, text => {
+            this._proxy.SendReplyRemote(key, text, () => {});
+        });
+        dialog.open();
     }
 
     _sync() {
@@ -334,6 +415,11 @@ class FedoraLinkIndicator extends SystemIndicator {
     destroy() {
         this._bridge?.destroy();
         this._bridge = null;
+
+        if (this._replyId) {
+            this._proxy.disconnectSignal(this._replyId);
+            this._replyId = null;
+        }
 
         if (this._propsId) {
             this._proxy.disconnect(this._propsId);
