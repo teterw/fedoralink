@@ -27,10 +27,17 @@
     <string name="send_clipboard">Send clipboard to PC</string>
     <string name="ring_pc">Ring my PC</string>
     <string name="ring_pc_sent">Ringing your PC</string>
+    <string name="file_send">Send to PC</string>
+    <string name="file_nothing_shared">Nothing to send</string>
     <string name="unlink">Forget paired PCs</string>
     <string name="unlinked">Paired PCs forgotten — you\'ll pair again next time</string>
     <string name="grant_permissions">Grant Bluetooth permissions</string>
     <string name="permissions_granted">Bluetooth permissions granted ✓</string>
 
     <string name="setup_hint">Pair this phone with your PC in Android\'s Bluetooth settings, then pick it below. Notification access must be granted separately — Android has no permission dialog for it.</string>
+    <plurals name="file_sending">
+        <item quantity="one">Sending to your PC…</item>
+        <item quantity="other">Sending %1$d files to your PC…</item>
+    </plurals>
+
 </resources>
