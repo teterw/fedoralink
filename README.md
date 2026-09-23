@@ -172,6 +172,7 @@ Create `~/.config/fedoralink/config.json` and name only what you're changing:
 | `lock_on_disconnect` | `false` | Lock the session when the phone leaves range |
 | `lock_on_disconnect_grace_seconds` | `30` | How long the phone must stay gone first |
 | `pc_ring_seconds` | `10` | How long the desktop rings when the phone calls it |
+| `connect_phone_audio` | `false` | Let the phone use this PC as a Bluetooth speaker |
 
 Read once at startup, so `systemctl --user restart fedoralink` after editing. A
 bad value is logged and ignored rather than fatal — one typo can't stop the
@@ -181,6 +182,19 @@ daemon from starting.
 uninteresting reasons — the phone's service restarting, a microwave, walking
 past a doorway — and a screen that locks every time is worse than no feature.
 The grace period exists so the phone has to actually stay gone.
+
+**Why `connect_phone_audio` defaults to off.** Bonding a phone to a PC makes
+the PC an audio sink, and Android routes media there on its own — so pressing
+play on the phone comes out of the laptop. FedoraLink never asks for that; it's
+what Android does with any bonded device advertising A2DP, and the phone can't
+opt out (`setConnectionPolicy` is a system API, closed to normal apps).
+
+The desktop can, so the daemon drops the audio profiles as they appear. The
+base Bluetooth link is untouched, so the FedoraLink connection itself is
+unaffected. Media *control* over AVRCP is left alone too — that carries no
+audio, and disconnecting it would take the media keys with it.
+
+Set it to `true` to use the PC as a speaker deliberately.
 
 **Ring My PC needs `canberra-gtk-play`** to ring properly (the `libcanberra-gtk3`
 package). Without it the alert falls back to a single notification chime, which

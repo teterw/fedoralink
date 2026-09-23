@@ -21,6 +21,19 @@ class TestDefaults:
         # feature, so this default is load-bearing.
         assert DEFAULTS["lock_on_disconnect"] is False
 
+    def test_phone_audio_is_off_by_default(self):
+        # The whole point of the option: Android auto-connects audio to a
+        # bonded PC, and having media suddenly come out of the laptop is
+        # the behaviour people want stopped.
+        assert DEFAULTS["connect_phone_audio"] is False
+
+    def test_phone_audio_can_be_turned_on(self):
+        assert merge({"connect_phone_audio": True})["connect_phone_audio"] is True
+
+    def test_phone_audio_rejects_a_non_bool(self):
+        merged = merge({"connect_phone_audio": "yes"})
+        assert merged["connect_phone_audio"] is False
+
     def test_load_returns_a_copy(self, tmp_path):
         loaded = load(tmp_path / "nope.json")
         loaded["battery_low_threshold"] = 99

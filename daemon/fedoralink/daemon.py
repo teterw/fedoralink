@@ -13,6 +13,7 @@ from gi.repository import Gio, GLib
 from . import config as config_module
 from .alert import Alerter
 from .dbus_service import DBusService
+from .plugins.audio import AudioPlugin
 from .plugins.auth import AuthPlugin
 from .plugins.battery import BatteryPlugin
 from .plugins.clipboard import ClipboardPlugin
@@ -59,6 +60,7 @@ class Daemon:
             self.ping,
             self.auth,
             PresencePlugin(self),
+            AudioPlugin(self),
         ]
 
         # type -> plugins, built once so packet dispatch is a dict lookup.

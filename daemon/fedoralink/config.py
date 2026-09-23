@@ -29,6 +29,11 @@ DEFAULTS: dict[str, Any] = {
     "lock_on_disconnect_grace_seconds": 30,
     # How long the desktop makes noise when the phone rings it.
     "pc_ring_seconds": 10,
+    # Let the phone use this PC as a Bluetooth speaker. Off by default:
+    # Android auto-connects audio to any bonded PC that advertises A2DP,
+    # so media suddenly comes out of the laptop instead of the phone —
+    # which is surprising, and not something FedoraLink asked for.
+    "connect_phone_audio": False,
 }
 
 

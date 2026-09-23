@@ -40,6 +40,7 @@ What's built, what's next, and what each item actually involves.
 | Find My Phone (rings through silent/DND) | PC → Phone | `plugins/ping.py`, `Ringer.kt` |
 | Auto-reconnect when the phone comes back in range | — | `daemon.py`, `LinkManager.kt` |
 | CI Android job fixed (`setup-android` v3 → v4) | — | `.github/workflows/` |
+| Keep phone audio on the phone (`connect_phone_audio`, off) | — | `plugins/audio.py` |
 
 ---
 
@@ -301,6 +302,20 @@ Send files both ways, with a chunked packet type and progress reporting.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Reported from real use: the phone was routing its audio to
+  the PC, so media played out of the laptop. Not something FedoraLink asked
+  for — Android auto-connects A2DP to any bonded PC that advertises it, and a
+  normal app can't opt out because `setConnectionPolicy` is a system API. The
+  desktop can, via `Device1.DisconnectProfile`, so that's where the fix went,
+  off by default.
+
+  Verified against the reporter's own Galaxy Z Flip6 rather than reasoned
+  about: it advertises `110a`/`110c`/`110e`/`1112`/`111f`, `DisconnectProfile`
+  succeeds on `110a` and `111f` and returns "Invalid arguments" for anything
+  unadvertised, every `MediaTransport1` disappeared, and `Device1.Connected`
+  stayed true — which is the part that matters, since the RFCOMM link rides
+  on it. Watching `InterfacesAdded` for `MediaTransport1` beats a timer,
+  because Android can connect audio well after our link comes up.
 - **2026-09-23** — Notification replies needed a redesign before they could be
   built. The plan assumed a text entry could sit on the freedesktop
   notification; GNOME Shell 50.4 advertises no `inline-reply` and exposes no
