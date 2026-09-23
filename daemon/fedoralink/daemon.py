@@ -100,6 +100,11 @@ class Daemon:
         # Until then the link carries nothing but identity and auth.
         self.authenticated = False
 
+        # Whether *this* connection ever authenticated. Outlives
+        # `authenticated` through the disconnect hooks, so a plugin can tell
+        # a phone leaving from a peer being refused.
+        self.session_was_authenticated = False
+
         # State mirrored onto D-Bus for the shell extension.
         self.connected = False
         self.device_name = ""
@@ -187,6 +192,7 @@ class Daemon:
     def _on_connected(self, connection: Connection) -> None:
         self.connected = True
         self.authenticated = False
+        self.session_was_authenticated = False
         self.device_name = connection.device_name
 
         self.send(
@@ -295,6 +301,8 @@ class Daemon:
         if self.authenticated == value:
             return
         self.authenticated = value
+        if value:
+            self.session_was_authenticated = True
         self.dbus.emit_changed()
 
         if value:

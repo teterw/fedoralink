@@ -306,6 +306,9 @@ object LinkManager {
         _pairingCode.value = null
         BatteryReporter.reportNow(appContext)
         MediaRelay.start(appContext)
+        // The desktop cleared its row on disconnect, so re-send even if the
+        // phone's own state hasn't moved.
+        MediaRelay.forgetLastSent()
         MediaRelay.reportNow()
     }
 

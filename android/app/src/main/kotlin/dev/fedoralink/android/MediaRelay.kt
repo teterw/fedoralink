@@ -32,6 +32,17 @@ object MediaRelay {
     /** Last payload sent, so an unchanged session doesn't spam the link. */
     private var lastSent: String? = null
 
+    /**
+     * Forget what we last sent, without tearing down the listener.
+     *
+     * The desktop clears its media row when the link drops, so after a
+     * reconnect it needs telling again even if nothing changed on the
+     * phone. Without this the row stayed empty until the track did.
+     */
+    fun forgetLastSent() {
+        lastSent = null
+    }
+
     fun start(context: Context) {
         if (manager != null) return
 

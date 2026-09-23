@@ -46,6 +46,14 @@ class PresencePlugin(Plugin):
         if not self.daemon.config["lock_on_disconnect"]:
             return
 
+        if not self.daemon.session_was_authenticated:
+            # The peer was refused rather than gone: wrong protocol version,
+            # a failed challenge, an enrollment the user declined. The phone
+            # is very likely in the user's hand, and locking their screen
+            # because their app needs updating would be absurd.
+            log.debug("link ended before authenticating; not arming the lock")
+            return
+
         grace = self.daemon.config["lock_on_disconnect_grace_seconds"]
         self._cancel_grace()
 

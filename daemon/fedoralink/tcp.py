@@ -31,6 +31,7 @@ import json
 import logging
 import socket
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from gi.repository import GLib
@@ -55,6 +56,27 @@ DEFAULT_PORT = 0
 # A phone that opens the socket and then says nothing must not hold the
 # single accept slot forever.
 HANDSHAKE_TIMEOUT_SECONDS = 10
+
+# The hello is one short JSON line. Anything larger is a peer that has lost
+# the plot, and the buffer is attacker-controlled, so it is capped.
+MAX_HANDSHAKE_BYTES = 8192
+
+
+@dataclass
+class _Handshake:
+    """A LAN peer part-way through proving itself.
+
+    Exists because the handshake is driven by the main loop rather than
+    blocking inside it: the state has to live somewhere between reads.
+    """
+
+    sock: socket.socket | None
+    host: str
+    nonce: str
+    device_id: str
+    buffer: bytearray = field(default_factory=bytearray)
+    read_source: int | None = None
+    timeout_source: int | None = None
 
 
 def local_addresses() -> list[str]:
@@ -263,6 +285,7 @@ class TcpTransport:
         self._secret_for = secret_for
 
         self.connection: TcpConnection | None = None
+        self._pending: _Handshake | None = None
         self._server: socket.socket | None = None
         self._accept_source: int | None = None
         # Nonce from the offer currently outstanding, and who it was for.
@@ -301,6 +324,7 @@ class TcpTransport:
     def stop(self) -> None:
         if self.connection is not None:
             self.connection.close()
+        self._abandon_handshake()
         if self._accept_source is not None:
             GLib.source_remove(self._accept_source)
             self._accept_source = None
@@ -335,19 +359,14 @@ class TcpTransport:
             log.warning("LAN accept failed: %s", exc)
             return GLib.SOURCE_CONTINUE
 
-        if self.connection is not None:
-            # One link at a time; a second caller is not our phone.
-            log.info("refusing a second LAN link from %s", address[0])
+        host = address[0]
+
+        if self.connection is not None or self._pending is not None:
+            # One at a time; a second caller is not our phone.
+            log.info("refusing a second LAN link from %s", host)
             sock.close()
             return GLib.SOURCE_CONTINUE
 
-        # Blocking for the handshake only: it is a single short line, and
-        # the timeout stops a silent peer holding the slot.
-        sock.settimeout(HANDSHAKE_TIMEOUT_SECONDS)
-        self._handshake(sock, address[0])
-        return GLib.SOURCE_CONTINUE
-
-    def _handshake(self, sock: socket.socket, host: str) -> None:
         nonce, expected_device = self._nonce, self._expect_device
         # One offer, one attempt.
         self._nonce = None
@@ -356,46 +375,133 @@ class TcpTransport:
         if nonce is None or expected_device is None:
             log.warning("unsolicited LAN link from %s", host)
             sock.close()
-            return
+            return GLib.SOURCE_CONTINUE
+
+        # Non-blocking throughout. The handshake used to read with a socket
+        # timeout, which ran inside this very callback — so a peer that
+        # connected and then said nothing froze the entire daemon for ten
+        # seconds: no notifications, no clipboard, no Bluetooth traffic.
+        sock.setblocking(False)
+
+        self._pending = _Handshake(
+            sock=sock,
+            host=host,
+            nonce=nonce,
+            device_id=expected_device,
+        )
+        self._pending.read_source = GLib.unix_fd_add_full(
+            GLib.PRIORITY_DEFAULT,
+            sock.fileno(),
+            GLib.IOCondition.IN | GLib.IOCondition.HUP | GLib.IOCondition.ERR,
+            self._on_handshake_readable,
+        )
+        self._pending.timeout_source = GLib.timeout_add_seconds(
+            HANDSHAKE_TIMEOUT_SECONDS, self._on_handshake_timeout
+        )
+        return GLib.SOURCE_CONTINUE
+
+    def _on_handshake_timeout(self) -> bool:
+        pending = self._pending
+        if pending is not None:
+            log.warning("LAN peer %s never completed the handshake", pending.host)
+            pending.timeout_source = None
+            self._abandon_handshake()
+        return GLib.SOURCE_REMOVE
+
+    def _on_handshake_readable(self, _fd: int, condition: GLib.IOCondition) -> bool:
+        pending = self._pending
+        if pending is None:
+            return GLib.SOURCE_REMOVE
+
+        if condition & (GLib.IOCondition.HUP | GLib.IOCondition.ERR):
+            log.info("LAN peer %s hung up during the handshake", pending.host)
+            pending.read_source = None
+            self._abandon_handshake()
+            return GLib.SOURCE_REMOVE
 
         try:
-            hello = self._read_line(sock)
-        except (OSError, ValueError) as exc:
-            log.warning("LAN handshake with %s failed: %s", host, exc)
-            sock.close()
+            chunk = pending.sock.recv(4096)
+        except BlockingIOError:
+            return GLib.SOURCE_CONTINUE
+        except OSError as exc:
+            log.warning("LAN handshake read from %s failed: %s", pending.host, exc)
+            pending.read_source = None
+            self._abandon_handshake()
+            return GLib.SOURCE_REMOVE
+
+        if not chunk:
+            log.info("LAN peer %s hung up during the handshake", pending.host)
+            pending.read_source = None
+            self._abandon_handshake()
+            return GLib.SOURCE_REMOVE
+
+        pending.buffer.extend(chunk)
+
+        if len(pending.buffer) > MAX_HANDSHAKE_BYTES:
+            log.warning("LAN peer %s sent an oversize handshake", pending.host)
+            pending.read_source = None
+            self._abandon_handshake()
+            return GLib.SOURCE_REMOVE
+
+        if b"\n" not in pending.buffer:
+            # Still arriving. Returning here is the whole point: the main
+            # loop keeps running while we wait.
+            return GLib.SOURCE_CONTINUE
+
+        line = bytes(pending.buffer[: pending.buffer.index(b"\n")])
+        pending.read_source = None
+        self._complete_handshake(pending, line)
+        return GLib.SOURCE_REMOVE
+
+    def _complete_handshake(self, pending: _Handshake, line: bytes) -> None:
+        try:
+            hello = json.loads(line.decode("utf-8"))
+            if not isinstance(hello, dict):
+                raise ValueError("handshake is not an object")
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            log.warning("malformed LAN handshake from %s: %s", pending.host, exc)
+            self._abandon_handshake()
             return
 
         device_id = hello.get("deviceId")
         secret = self._secret_for(device_id) if isinstance(device_id, str) else None
 
         try:
-            phone_nonce = verify_hello(hello, expected_device, nonce, secret)
+            phone_nonce = verify_hello(hello, pending.device_id, pending.nonce, secret)
         except HandshakeRejected as exc:
-            log.warning("refusing LAN peer %s: %s", host, exc)
-            sock.close()
+            log.warning("refusing LAN peer %s: %s", pending.host, exc)
+            self._abandon_handshake()
             return
 
         assert secret is not None  # verify_hello rejects None
 
-        # Prove ourselves in return, so the phone isn't trusting an
-        # address it was handed.
+        # Prove ourselves in return, so the phone isn't trusting an address
+        # it was simply handed. One small line on a socket whose send buffer
+        # is empty, so a single non-blocking send takes it; a peer that
+        # can't accept ~90 bytes is not worth waiting for.
         try:
             our_mac = auth.respond(secret, phone_nonce)
-            sock.sendall(serialize({"mac": our_mac}))
+            reply = serialize({"mac": our_mac})
+            if pending.sock.send(reply) != len(reply):
+                raise OSError("short write answering the challenge")
         except (OSError, ValueError) as exc:
             log.warning("could not answer the LAN challenge: %s", exc)
-            sock.close()
+            self._abandon_handshake()
             return
 
         try:
-            desktop_key, phone_key = derive_keys(secret, nonce, phone_nonce)
+            desktop_key, phone_key = derive_keys(secret, pending.nonce, phone_nonce)
             crypto = RecordCrypto(send_key=desktop_key, recv_key=phone_key)
         except SessionError as exc:
             log.error("could not derive LAN session keys: %s", exc)
-            sock.close()
+            self._abandon_handshake()
             return
 
-        sock.settimeout(None)
+        sock, host = pending.sock, pending.host
+        # Hand the socket over before clearing, so cleanup doesn't close it.
+        pending.sock = None
+        self._clear_handshake()
+
         connection = TcpConnection(
             sock, host, crypto, self._on_packet, self._handle_close
         )
@@ -403,22 +509,25 @@ class TcpTransport:
         log.info("LAN link up with %s", host)
         self._on_connected(connection)
 
-    @staticmethod
-    def _read_line(sock: socket.socket) -> dict[str, Any]:
-        """Read one newline-terminated JSON object, with a hard cap."""
-        buf = bytearray()
-        while b"\n" not in buf:
-            chunk = sock.recv(4096)
-            if not chunk:
-                raise ValueError("peer hung up during the handshake")
-            buf.extend(chunk)
-            if len(buf) > 8192:
-                raise ValueError("handshake line too long")
+    def _abandon_handshake(self) -> None:
+        pending = self._pending
+        if pending is not None and pending.sock is not None:
+            try:
+                pending.sock.close()
+            except OSError:
+                pass
+            pending.sock = None
+        self._clear_handshake()
 
-        parsed = json.loads(bytes(buf[: buf.index(b"\n")]).decode("utf-8"))
-        if not isinstance(parsed, dict):
-            raise ValueError("handshake is not an object")
-        return parsed
+    def _clear_handshake(self) -> None:
+        pending = self._pending
+        self._pending = None
+        if pending is None:
+            return
+        if pending.read_source is not None:
+            GLib.source_remove(pending.read_source)
+        if pending.timeout_source is not None:
+            GLib.source_remove(pending.timeout_source)
 
     # -------------------------------------------------------------- send
 

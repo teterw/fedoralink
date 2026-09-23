@@ -269,6 +269,7 @@ class NotificationPlugin(Plugin):
         if local_id is None:
             return
         self._local_to_remote.pop(local_id, None)
+        self._titles.pop(local_id, None)
         self._close_local(local_id)
 
     def _close_local(self, local_id: int) -> None:
@@ -304,6 +305,10 @@ class NotificationPlugin(Plugin):
         if key is None:
             return
         self._remote_to_local.pop(key, None)
+        # Kept in step with the other two maps: without this, a phone that
+        # posts notifications all day leaves an entry here for every one of
+        # them, for the life of the connection.
+        self._titles.pop(local_id, None)
 
         # Only propagate a deliberate dismissal. A timeout just means it
         # scrolled off the desktop; the phone's copy should survive that.
