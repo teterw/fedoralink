@@ -75,6 +75,15 @@ class Connection:
         )
         self._out_source: int | None = None
 
+    @property
+    def pending_bytes(self) -> int:
+        """Bytes queued but not yet written to the socket.
+
+        RFCOMM drains at roughly 200 KB/s, so a file pump that ignored this
+        would queue the whole file in memory in a second or two.
+        """
+        return len(self._outbox)
+
     def _on_readable(self, _fd: int, condition: GLib.IOCondition) -> bool:
         if condition & (GLib.IOCondition.HUP | GLib.IOCondition.ERR):
             log.info("link to %s hung up", self.device_name)

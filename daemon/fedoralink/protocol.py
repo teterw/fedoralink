@@ -39,6 +39,16 @@ AUTH = "fedoralink.auth"
 MEDIA = "fedoralink.media"
 UPGRADE = "fedoralink.upgrade"
 
+# File transfer. Chunks carry base64 inside the same NDJSON stream rather
+# than switching to a binary framing: it costs a third more bytes, which is
+# irrelevant on a LAN and painful over Bluetooth, but it keeps the whole
+# protocol readable in a terminal — the property that makes it debuggable.
+FILE_OFFER = "fedoralink.file.offer"
+FILE_ACCEPT = "fedoralink.file.accept"
+FILE_CHUNK = "fedoralink.file.chunk"
+FILE_DONE = "fedoralink.file.done"
+FILE_CANCEL = "fedoralink.file.cancel"
+
 # A phone can legitimately push a large clipboard, but nothing in this
 # protocol has any business being megabytes. Cap it so a desync or a
 # hostile peer can't make the daemon allocate without bound.

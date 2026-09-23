@@ -17,6 +17,7 @@ from .plugins.audio import AudioPlugin
 from .plugins.auth import AuthPlugin
 from .plugins.battery import BatteryPlugin
 from .plugins.clipboard import ClipboardPlugin
+from .plugins.files import FilesPlugin
 from .plugins.media import MediaPlugin
 from .plugins.notification import NotificationPlugin
 from .plugins.ping import PingPlugin
@@ -67,6 +68,7 @@ class Daemon:
         self.ping = PingPlugin(self)
         self.auth = AuthPlugin(self)
         self.media = MediaPlugin(self)
+        self.files = FilesPlugin(self)
         self.plugins = [
             BatteryPlugin(self),
             self.notifications,
@@ -74,6 +76,7 @@ class Daemon:
             self.ping,
             self.auth,
             self.media,
+            self.files,
             PresencePlugin(self),
             AudioPlugin(self),
         ]
@@ -172,6 +175,12 @@ class Daemon:
     @property
     def on_lan(self) -> bool:
         return self.tcp.connection is not None
+
+    @property
+    def pending_bytes(self) -> int:
+        """How much is queued on the active link, for back-pressure."""
+        connection = self.tcp.connection or self.transport.connection
+        return connection.pending_bytes if connection is not None else 0
 
     # ------------------------------------------------------ connection io
 

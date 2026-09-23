@@ -57,7 +57,7 @@ KDE Connect for bulk transfers.
 | 3 | Notification replies | In progress |
 | 3 | Media control | In progress |
 | 4 | LAN/TCP transport | In progress |
-| 4 | File transfer | Planned |
+| 4 | File transfer | In progress |
 
 Full plan, with the approach and acceptance criteria for each item, is in
 [ROADMAP.md](ROADMAP.md).

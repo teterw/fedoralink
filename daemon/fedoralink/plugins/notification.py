@@ -211,6 +211,49 @@ class NotificationPlugin(Plugin):
         self._own_actions[local_id] = on_action
         return local_id
 
+    def show_progress(
+        self, local_id: int | None, summary: str, body: str
+    ) -> int | None:
+        """Post or update a progress notification in place.
+
+        Passing the previous id back as `replaces_id` is what stops a
+        transfer stacking one notification per chunk.
+        """
+        if self._bus is None:
+            return None
+
+        args = GLib.Variant(
+            "(susssasa{sv}i)",
+            (
+                "FedoraLink",
+                local_id or 0,
+                "phone-symbolic",
+                summary,
+                body,
+                [],
+                {
+                    "desktop-entry": GLib.Variant(
+                        "s", "org.fedoralink.FedoraLink"
+                    ),
+                    # Transient: progress is not worth keeping in the tray
+                    # after the fact.
+                    "transient": GLib.Variant("b", True),
+                },
+                -1,
+            ),
+        )
+
+        try:
+            result = self._bus.call_sync(
+                FDO_BUS, FDO_PATH, FDO_IFACE, "Notify", args,
+                GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, -1, None,
+            )
+        except GLib.Error as exc:
+            log.debug("progress notification failed: %s", exc)
+            return local_id
+
+        return result.unpack()[0]
+
     def cancel_ask(self, local_id: int | None) -> None:
         """Withdraw a question whose answer no longer matters."""
         if local_id is None:

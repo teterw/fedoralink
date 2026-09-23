@@ -41,6 +41,13 @@ INTROSPECTION = """
     <method name='MediaCommand'>
       <arg name='action' type='s' direction='in'/>
     </method>
+    <method name='SendFile'>
+      <arg name='path' type='s' direction='in'/>
+      <arg name='started' type='b' direction='out'/>
+    </method>
+    <method name='CancelTransfer'>
+      <arg name='cancelled' type='b' direction='out'/>
+    </method>
     <!-- The shell extension reads and writes the selection on our behalf;
          see plugins/clipboard.py for why the daemon can't do it itself. -->
     <method name='SetClipboard'>
@@ -142,6 +149,17 @@ class DBusService:
         elif method == "SetClipboard":
             content, force = params.unpack()
             self.daemon.clipboard.set_from_shell(content, force)
+        elif method == "SendFile":
+            (path,) = params.unpack()
+            invocation.return_value(
+                GLib.Variant("(b)", (self.daemon.files.send_file(path),))
+            )
+            return
+        elif method == "CancelTransfer":
+            invocation.return_value(
+                GLib.Variant("(b)", (self.daemon.files.cancel(),))
+            )
+            return
         elif method == "MediaCommand":
             (action,) = params.unpack()
             self.daemon.media.command(action)

@@ -329,15 +329,52 @@ case 1 on both sides, and the Kotlin tests open ciphertext the Python side
 actually produced, so the two implementations provably interoperate. The socket
 plumbing around it has never carried a byte between two machines.
 
-### File transfer — **Planned**
+### File transfer — **In progress** (desktop done, phone half done)
 
-Send files both ways, with a chunked packet type and progress reporting.
+Chunked over the existing NDJSON stream, base64 inside `fedoralink.file.*`
+packets. That costs a third more bytes than a binary framing, which is
+irrelevant on a LAN and painful over Bluetooth — but it keeps the whole
+protocol readable in a terminal, which is the property that makes it
+debuggable.
 
-- [ ] Send from the desktop (Files integration or drag onto the toggle) and
-      from the phone (Android share sheet)
-- [ ] Progress is visible, and a transfer can be cancelled
-- [ ] A dropped link resumes or fails cleanly — never a silent half-file
-- [ ] Over Bluetooth, the UI is honest about how slow it will be
+**Done and tested** (desktop, 45 tests in `test_transfers.py`)
+
+- `transfers.py` — the accounting: in-order chunks only, declared size as a
+  hard limit, SHA-256 verified before the temp file is renamed into place
+- `plugins/files.py` — the I/O, the accept prompt, progress notifications,
+  and back-pressure
+- `SendFile` / `CancelTransfer` over D-Bus
+
+**Done, not yet compiled** (phone)
+
+- `FileTransfer.kt` — receive into MediaStore Downloads (pending until the
+  hash matches, so a corrupt file never reaches the gallery), send from a
+  content Uri
+
+**Still to do**
+
+- [ ] `FileSendActivity` for the Android share sheet, plus its manifest entry
+- [ ] Route the `fedoralink.file.*` packets in `LinkService`
+- [ ] A way to start a send from the desktop (Files integration, or drag onto
+      the Quick Settings toggle — `SendFile` works over `busctl` today)
+- [ ] Compile the Kotlin and run it
+
+**Acceptance criteria**
+
+- [~] Send from the desktop and from the phone — desktop side done via
+      `SendFile`; the share-sheet activity is not written yet
+- [x] Progress is visible, and a transfer can be cancelled — progress
+      notification replaces in place rather than stacking one per chunk;
+      `CancelTransfer` and `FILE_CANCEL` work both ways
+- [x] A dropped link fails cleanly, never a silent half-file — writes go to
+      `.name.part` and are renamed only after the hash matches; a disconnect
+      mid-transfer discards it
+- [x] Over Bluetooth, the UI is honest about how slow it will be — the accept
+      prompt says "about 7 minutes over Bluetooth" using RFCOMM's real
+      throughput, and omits it on a LAN
+
+Resuming is explicitly *not* implemented: the criterion said "resumes or fails
+cleanly", and failing cleanly is the half that's built.
 
 ---
 
@@ -345,6 +382,11 @@ Send files both ways, with a chunked packet type and progress reporting.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Paused mid-file-transfer at the user's request. Desktop half
+  is complete and tested; the phone's `FileTransfer.kt` is written but has
+  never been compiled, so it went to the `wip/file-transfer` branch rather
+  than main — no point leaving main red across a pause. Remaining work is
+  listed under the item above.
 - **2026-09-23** — Reported from real use: the phone was routing its audio to
   the PC, so media played out of the laptop. Not something FedoraLink asked
   for — Android auto-connects A2DP to any bonded PC that advertises it, and a

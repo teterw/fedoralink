@@ -29,6 +29,12 @@ object Protocol {
     const val MEDIA = "fedoralink.media"
     const val UPGRADE = "fedoralink.upgrade"
 
+    const val FILE_OFFER = "fedoralink.file.offer"
+    const val FILE_ACCEPT = "fedoralink.file.accept"
+    const val FILE_CHUNK = "fedoralink.file.chunk"
+    const val FILE_DONE = "fedoralink.file.done"
+    const val FILE_CANCEL = "fedoralink.file.cancel"
+
     // Auth stages, mirroring daemon/fedoralink/plugins/auth.py.
     const val STAGE_ENROLL = "enroll"
     const val STAGE_CHALLENGE = "challenge"

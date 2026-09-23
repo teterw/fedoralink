@@ -131,6 +131,11 @@ class TcpConnection:
         )
         self._out_source: int | None = None
 
+    @property
+    def pending_bytes(self) -> int:
+        """Bytes queued but not yet written to the socket."""
+        return len(self._outbox)
+
     # ----------------------------------------------------------- inbound
 
     def _on_readable(self, _fd: int, condition: GLib.IOCondition) -> bool:
