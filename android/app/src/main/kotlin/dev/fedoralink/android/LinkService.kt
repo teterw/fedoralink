@@ -86,6 +86,21 @@ class LinkService : Service() {
             if (body.optBoolean("ring", false)) Ringer.ring(applicationContext)
             else Ringer.stop(applicationContext)
         }
+        LinkManager.on(Protocol.FILE_OFFER) { body ->
+            FileTransfer.onOffer(applicationContext, body)
+        }
+        LinkManager.on(Protocol.FILE_CHUNK) { body ->
+            FileTransfer.onChunk(applicationContext, body)
+        }
+        LinkManager.on(Protocol.FILE_DONE) { body ->
+            FileTransfer.onDone(applicationContext, body)
+        }
+        LinkManager.on(Protocol.FILE_CANCEL) { body ->
+            FileTransfer.onCancel(applicationContext, body)
+        }
+        LinkManager.on(Protocol.FILE_ACCEPT) { body ->
+            FileTransfer.acceptOutgoing(body.optString("id"))
+        }
         LinkManager.on(Protocol.MEDIA) { body ->
             MediaRelay.command(body.optString("action"))
         }
