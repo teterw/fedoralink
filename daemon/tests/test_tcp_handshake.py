@@ -15,11 +15,11 @@ import pytest
 
 pytest.importorskip("gi", reason="PyGObject is needed for the GLib main loop")
 
-from gi.repository import GLib  # noqa: E402
+from gi.repository import GLib
 
-from fedoralink import auth  # noqa: E402
-from fedoralink.session import RecordCrypto, derive_keys  # noqa: E402
-from fedoralink.tcp import TcpTransport  # noqa: E402
+from fedoralink import auth
+from fedoralink.session import RecordCrypto, derive_keys
+from fedoralink.tcp import TcpTransport
 
 
 class Harness:
@@ -54,7 +54,9 @@ class Harness:
         self.transport.stop()
 
 
-def hello_line(device_id: str, secret: str, desktop_nonce: str, phone_nonce: str) -> bytes:
+def hello_line(
+    device_id: str, secret: str, desktop_nonce: str, phone_nonce: str
+) -> bytes:
     return (
         json.dumps(
             {

@@ -328,8 +328,10 @@ enough to reuse — it deals in packets and a file descriptor, not in Bluetooth.
 
 **Acceptance criteria**
 
-- [~] Same Wi-Fi: connects over TCP — built, but never run between two real
-      devices, so "measurably faster" is unmeasured
+- [~] Same Wi-Fi: connects over TCP — the desktop side is now verified end to
+      end against a fake phone in Python: handshake, mutual MAC check, key
+      derivation, and a real AES-GCM record decoded. Never run against an
+      actual phone, so "measurably faster" is still unmeasured
 - [x] No shared network: falls back to Bluetooth, unprompted — the upgrade is
       best-effort and a failure to connect is not an error
 - [x] Leaving Wi-Fi mid-session doesn't drop the link — Bluetooth stays
@@ -398,6 +400,34 @@ cleanly", and failing cleanly is the half that's built.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Audit pass. Four real defects, all found by reading rather
+  than by anything failing:
+
+  1. **The LAN handshake could freeze the daemon.** It read with a socket
+     timeout *inside* the GLib accept callback, so a peer that connected and
+     then said nothing stalled everything — notifications, clipboard, Bluetooth
+     — for ten seconds. Rewritten as a non-blocking state machine driven by the
+     main loop, with a regression test that fails if a timer stops ticking
+     during a handshake.
+  2. **Lock-on-leave fired on a refused peer.** Any disconnect armed it,
+     including a protocol-version refusal or a declined enrollment — so
+     updating the daemon and not the app would lock your screen thirty seconds
+     later, with the phone in your hand. It now only arms if the session had
+     authenticated.
+  3. **Media went silent after a reconnect.** The phone skips an unchanged
+     payload, but the desktop clears its row on disconnect, so the row stayed
+     empty until the track changed.
+  4. **The notification title map never shrank.** One entry per mirrored
+     notification, cleared only on disconnect.
+
+  Checked and deliberately *not* changed: `audio.py` matches the BlueZ device
+  path with `startswith`, which looks like a prefix-collision bug. Device paths
+  are fixed-length, so none can prefix another — not a defect, and "fixing" it
+  would be noise.
+
+  Also worth recording: the lint step and the commit went in as two shell
+  commands rather than one chain, so a lint failure did not stop the push. One
+  commit on main fails `ruff`; the next fixes it. Chain them.
 - **2026-09-23** — Every planned item is now implemented, which exposed a flaw
   in this file's own legend: eight items sat at **In progress**, defined as
   "someone is actively writing it", when nobody was. There was no state for
