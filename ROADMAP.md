@@ -329,7 +329,7 @@ case 1 on both sides, and the Kotlin tests open ciphertext the Python side
 actually produced, so the two implementations provably interoperate. The socket
 plumbing around it has never carried a byte between two machines.
 
-### File transfer — **In progress** (desktop done, phone half done)
+### File transfer — **In progress** (built both sides, untested on hardware)
 
 Chunked over the existing NDJSON stream, base64 inside `fedoralink.file.*`
 packets. That costs a third more bytes than a binary framing, which is
@@ -345,24 +345,26 @@ debuggable.
   and back-pressure
 - `SendFile` / `CancelTransfer` over D-Bus
 
-**Done, not yet compiled** (phone)
+**Done and compiling** (phone)
 
-- `FileTransfer.kt` — receive into MediaStore Downloads (pending until the
-  hash matches, so a corrupt file never reaches the gallery), send from a
+- `FileTransfer.kt` — receive into MediaStore Downloads, `IS_PENDING` until
+  the hash matches so a corrupt file never reaches the gallery; send from a
   content Uri
+- `FileSendActivity.kt` — share sheet for any mime type, single or multiple;
+  finishes at once and lets the foreground service carry the transfer
+- `LinkService` routes all five `fedoralink.file.*` types
 
 **Still to do**
 
-- [ ] `FileSendActivity` for the Android share sheet, plus its manifest entry
-- [ ] Route the `fedoralink.file.*` packets in `LinkService`
-- [ ] A way to start a send from the desktop (Files integration, or drag onto
-      the Quick Settings toggle — `SendFile` works over `busctl` today)
-- [ ] Compile the Kotlin and run it
+- [ ] A nicer way to start a send from the desktop. `SendFile` over `busctl`
+      works today; Files integration or a drop target on the Quick Settings
+      toggle would be better
+- [ ] Run it. Nothing here has moved a byte between a real phone and a real PC
 
 **Acceptance criteria**
 
-- [~] Send from the desktop and from the phone — desktop side done via
-      `SendFile`; the share-sheet activity is not written yet
+- [x] Send from the desktop and from the phone — `SendFile` over D-Bus one
+      way, the Android share sheet the other
 - [x] Progress is visible, and a transfer can be cancelled — progress
       notification replaces in place rather than stacking one per chunk;
       `CancelTransfer` and `FILE_CANCEL` work both ways
@@ -382,11 +384,12 @@ cleanly", and failing cleanly is the half that's built.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
-- **2026-09-23** — Paused mid-file-transfer at the user's request. Desktop half
-  is complete and tested; the phone's `FileTransfer.kt` is written but has
-  never been compiled, so it went to the `wip/file-transfer` branch rather
-  than main — no point leaving main red across a pause. Remaining work is
-  listed under the item above.
+- **2026-09-23** — File transfer complete on both sides and compiling. The
+  phone half went via a branch and PR #1 rather than straight to main, because
+  CI only builds `main` and pull requests — a branch push compiles nothing, so
+  a PR was the only way to get the Kotlin near a compiler before it landed.
+  All ten roadmap items are now built. None of the phone-side ones have been
+  run on a phone.
 - **2026-09-23** — Reported from real use: the phone was routing its audio to
   the PC, so media played out of the laptop. Not something FedoraLink asked
   for — Android auto-connects A2DP to any bonded PC that advertises it, and a

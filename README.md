@@ -27,6 +27,7 @@ Quick Settings panel next to Wi-Fi and brightness, the way GSConnect does.
 | Low-battery warning on the desktop | Phone → PC |
 | Reply to a message from the desktop | PC → Phone |
 | Media controls in Quick Settings (play/pause, next, previous) | PC → Phone |
+| File transfer, with progress and cancel | Both |
 | Lock the desktop when the phone leaves range (off by default) | — |
 | Auto-reconnect when the phone comes back in range | — |
 
@@ -113,6 +114,26 @@ app but isn't.
 Notification access has to be granted separately, in Android's own Settings —
 there is no runtime permission dialog for it. The app has a button that takes
 you to the right screen.
+
+## Sending files
+
+From the phone: **Share → Send to PC**, any file type. From the desktop, over
+D-Bus for now:
+
+```
+busctl --user call org.fedoralink.Daemon /org/fedoralink/Daemon \
+    org.fedoralink.Daemon SendFile s ~/Pictures/holiday.jpg
+
+# and to stop one mid-flight
+busctl --user call org.fedoralink.Daemon /org/fedoralink/Daemon \
+    org.fedoralink.Daemon CancelTransfer
+```
+
+Incoming files ask before saving, land in your Downloads folder, and are
+verified against a SHA-256 before being renamed into place — so an interrupted
+transfer leaves nothing behind rather than a half-file with the right name. The
+prompt tells you how long it will take, and over Bluetooth that is worth
+reading: **80 MB is about seven minutes**. On a LAN link it is seconds.
 
 ## The LAN link
 
