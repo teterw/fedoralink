@@ -53,7 +53,7 @@ KDE Connect for bulk transfers.
 | 1 | Fix `Ringer.stop()` not cancelling vibration | Built (in v0.4.0) |
 | 2 | Handshake authentication | Built |
 | 2 | Tests for the protocol layer | Shipped |
-| 2 | Kotlin `Protocol.Reader` tests | Planned |
+| 2 | Kotlin `Protocol.Reader` tests | Shipped |
 | 3 | Low-battery warning, ring-the-PC, lock-on-leave | Built |
 | 3 | Notification replies | Built |
 | 3 | Media control | Built |

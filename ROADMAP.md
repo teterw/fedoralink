@@ -202,7 +202,7 @@ pings, it just doesn't make a sound.
       is infuriating
 - [x] A grace period, so a momentary drop doesn't lock you out mid-sentence
 
-### Kotlin `Protocol.Reader` tests — **Planned**
+### Kotlin `Protocol.Reader` tests — **Shipped**
 
 Discovered while writing the Python suite. The Python reader buffers raw bytes
 and only decodes complete lines, so it cannot mojibake a split multibyte
@@ -213,10 +213,15 @@ future edit could quietly break, and it has no tests.
 Needs a JVM unit-test source set (`src/test/kotlin`), a JUnit dependency, and
 a `gradle test` step in CI.
 
-- [ ] Split reads, byte-by-byte feeds, and a split multibyte character
-- [ ] Oversize line resets both buffers
-- [ ] Malformed packet is skipped without dropping the stream
-- [ ] `gradle test` runs in CI
+- [x] Split reads, byte-by-byte feeds, and a split multibyte character
+- [x] Oversize line resets both buffers
+- [x] Malformed packet is skipped without dropping the stream
+- [x] `gradle test` runs in CI
+
+21 tests in `android/app/src/test/`, which also cover the crypto: HKDF against
+RFC 5869, and opening ciphertext the Python side produced. These run on a plain
+JVM, which is why `Crypto.kt` and `LanSession.kt` use `java.util.Base64` rather
+than Android's.
 
 ### Notification replies — **Built**
 
