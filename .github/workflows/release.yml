@@ -96,6 +96,31 @@ jobs:
           files: ${{ steps.rename.outputs.apk }}
           generate_release_notes: true
           body: |
+            ## Update both halves together
+
+            This release adds authentication to the link, which moves the
+            wire protocol to version 2. There is deliberately no downgrade
+            path: a version 1 peer has no device secret, and accepting one
+            unauthenticated is the exact thing the change prevents.
+
+            **So update the PC and the phone together.** If you update only
+            one side the link will refuse to connect, and the daemon will
+            log:
+
+            ```
+            SM-XXXX speaks protocol 1; 2 or newer is required.
+            Update the FedoraLink app on the phone.
+            ```
+
+            That is the version check working, not a fault.
+
+            ### First connection after updating
+
+            Your phone is no longer trusted, because trust now means a
+            shared secret that didn't exist before. On the first connection
+            both screens show the same six-digit code and the desktop asks
+            you to approve it. Check the digits match, then approve.
+
             ## Install
 
             **Fedora (PC):**
