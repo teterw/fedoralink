@@ -1,3 +1,9 @@
+[tool.pytest.ini_options]
+testpaths = ["daemon/tests"]
+# protocol.py imports no gi, so the suite runs without PyGObject. Keeping
+# daemon/ on the path means tests import fedoralink the way the daemon does.
+pythonpath = ["daemon"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

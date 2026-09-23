@@ -131,19 +131,23 @@ a packet. An unauthenticated peer gets the handshake and nothing else.
 - [ ] The secret survives a daemon restart and a phone reboot
 - [ ] Revoking a device is possible without re-pairing Bluetooth
 
-### Tests for the protocol layer — **Planned**
+### Tests for the protocol layer — **Shipped**
 
 There is no test suite. `PacketReader` is the right first target: pure Python,
 no GLib, and its whole job is the cases that are easy to get wrong and
 catastrophic when broken.
 
-- [ ] A packet split across two reads reassembles
-- [ ] A packet split mid-multibyte-character doesn't produce mojibake
-- [ ] An oversize line with no newline raises `ProtocolError` and clears the
+- [x] A packet split across two reads reassembles
+- [x] A packet split mid-multibyte-character doesn't produce mojibake
+- [x] An oversize line with no newline raises `ProtocolError` and clears the
       buffer
-- [ ] A malformed packet raises but leaves the stream framed and usable
-- [ ] Blank lines are skipped
-- [ ] `pytest` runs in CI alongside the existing `compileall` and `ruff` steps
+- [x] A malformed packet raises but leaves the stream framed and usable
+- [x] Blank lines are skipped
+- [x] `pytest` runs in CI alongside the existing `compileall` and `ruff` steps
+
+26 tests in `daemon/tests/test_protocol.py`. Mutation-checked: removing the
+oversize buffer clear and flipping `ensure_ascii` both turn the suite red, so
+it is pinning real behaviour rather than passing vacuously.
 
 ---
 
@@ -175,6 +179,22 @@ pings, it just doesn't make a sound.
 - [ ] Off by default, behind a setting — a flaky link that locks your screen
       is infuriating
 - [ ] A grace period, so a momentary drop doesn't lock you out mid-sentence
+
+### Kotlin `Protocol.Reader` tests — **Planned**
+
+Discovered while writing the Python suite. The Python reader buffers raw bytes
+and only decodes complete lines, so it cannot mojibake a split multibyte
+character — the property holds structurally. `Protocol.Reader` in Kotlin keeps
+the same guarantee through explicit `lastIndexOf('\n')` logic instead, which a
+future edit could quietly break, and it has no tests.
+
+Needs a JVM unit-test source set (`src/test/kotlin`), a JUnit dependency, and
+a `gradle test` step in CI.
+
+- [ ] Split reads, byte-by-byte feeds, and a split multibyte character
+- [ ] Oversize line resets both buffers
+- [ ] Malformed packet is skipped without dropping the stream
+- [ ] `gradle test` runs in CI
 
 ### Notification replies — **Planned**
 
@@ -248,6 +268,12 @@ Send files both ways, with a chunked packet type and progress reporting.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Protocol tests landed. Mutation-testing them turned up
+  something worth recording: the Python `PacketReader` is immune to
+  mid-multibyte-character splits *by construction* (it buffers bytes, decodes
+  whole lines), so that test can never fail there. Kotlin's `Protocol.Reader`
+  maintains the same property through explicit logic, so it is the side where
+  a regression is possible — and it has no tests. Added as its own item.
 - **2026-09-18** — Released as v0.4.0 with a signed APK. Getting there meant
   fixing CI first: `android-actions/setup-android@v3` defaults to installing
   the `tools` package, which Google has removed from the SDK repository, so
