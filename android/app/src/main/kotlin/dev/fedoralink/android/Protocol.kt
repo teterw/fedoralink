@@ -26,6 +26,7 @@ object Protocol {
     const val CLIPBOARD = "fedoralink.clipboard"
     const val PING = "fedoralink.ping"
     const val AUTH = "fedoralink.auth"
+    const val MEDIA = "fedoralink.media"
 
     // Auth stages, mirroring daemon/fedoralink/plugins/auth.py.
     const val STAGE_ENROLL = "enroll"

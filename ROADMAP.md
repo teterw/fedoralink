@@ -244,11 +244,31 @@ Unverified on hardware. The modal dialog in particular has never been on a
 screen — `ModalDialog` and `St.Entry` are stable API across shell 45–50, but
 that is reasoning, not evidence.
 
-### Media control — **Idea**
+### Media control — **In progress**
 
-Desktop MPRIS keys from the phone, or phone playback from Quick Settings.
-Tiny packets, so it sits comfortably within the Bluetooth budget. Unscoped —
-decide which direction matters first.
+**Scoped: control the phone's playback from the desktop**, over RFCOMM. The
+direction was decided by evidence rather than preference — Bluetooth's own
+AVRCP already does this, *but only while A2DP is connected*, and
+`connect_phone_audio` defaults to off precisely so it isn't. Verified on a real
+device: dropping A2DP removes BlueZ's `MediaPlayer1` too. So this restores
+control the audio fix takes away, instead of duplicating a working profile.
+
+Android exposes active sessions through `MediaSessionManager`, whose access is
+gated on the notification-listener grant — which the app already holds for
+notification mirroring. No new permission.
+
+- [x] Now playing (title, artist, whether it's playing) reaches the desktop
+- [x] Play/pause, next and previous work from Quick Settings
+- [x] Nothing playing means no media row, rather than a dead one — the phone
+      sends `hasSession: false` explicitly, so the desktop clears rather than
+      keeping a stale track
+- [x] Controls disappear when the phone disconnects
+
+Also: identical updates don't emit a D-Bus change, so a session reporting in
+repeatedly doesn't redraw the menu; and the daemon refuses unknown actions
+rather than forwarding something the phone would silently ignore. 13 tests.
+
+Unverified on hardware.
 
 ---
 
@@ -316,6 +336,14 @@ Running log of decisions and discoveries that changed the plan. Newest first.
   stayed true — which is the part that matters, since the RFCOMM link rides
   on it. Watching `InterfacesAdded` for `MediaTransport1` beats a timer,
   because Android can connect audio well after our link comes up.
+
+  Correction to the above, found by re-checking after the fact: dropping A2DP
+  takes AVRCP with it. The commit claimed media control was preserved because
+  AVRCP's UUIDs aren't in the disconnect list — but `MediaPlayer1` vanished
+  along with the transport, so the claim was wrong in effect. Fixed in the
+  comment and the README. It also settles the media-control scoping below:
+  with audio off there is no Bluetooth-native media control, so carrying it
+  over RFCOMM restores something real rather than duplicating a profile.
 - **2026-09-23** — Notification replies needed a redesign before they could be
   built. The plan assumed a text entry could sit on the freedesktop
   notification; GNOME Shell 50.4 advertises no `inline-reply` and exposes no

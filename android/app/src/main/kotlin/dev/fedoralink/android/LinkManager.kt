@@ -289,6 +289,8 @@ object LinkManager {
         _authenticated.value = true
         _pairingCode.value = null
         BatteryReporter.reportNow(appContext)
+        MediaRelay.start(appContext)
+        MediaRelay.reportNow()
     }
 
     private fun resetAuth() {

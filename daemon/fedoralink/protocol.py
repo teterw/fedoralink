@@ -36,6 +36,7 @@ NOTIFICATION_ACTION = "fedoralink.notification.action"
 CLIPBOARD = "fedoralink.clipboard"
 PING = "fedoralink.ping"
 AUTH = "fedoralink.auth"
+MEDIA = "fedoralink.media"
 
 # A phone can legitimately push a large clipboard, but nothing in this
 # protocol has any business being megabytes. Cap it so a desync or a

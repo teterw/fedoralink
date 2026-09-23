@@ -17,6 +17,7 @@ from .plugins.audio import AudioPlugin
 from .plugins.auth import AuthPlugin
 from .plugins.battery import BatteryPlugin
 from .plugins.clipboard import ClipboardPlugin
+from .plugins.media import MediaPlugin
 from .plugins.notification import NotificationPlugin
 from .plugins.ping import PingPlugin
 from .plugins.presence import PresencePlugin
@@ -53,12 +54,14 @@ class Daemon:
         self.clipboard = ClipboardPlugin(self)
         self.ping = PingPlugin(self)
         self.auth = AuthPlugin(self)
+        self.media = MediaPlugin(self)
         self.plugins = [
             BatteryPlugin(self),
             self.notifications,
             self.clipboard,
             self.ping,
             self.auth,
+            self.media,
             PresencePlugin(self),
             AudioPlugin(self),
         ]

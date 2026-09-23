@@ -68,6 +68,7 @@ class LinkService : Service() {
     }
 
     override fun onDestroy() {
+        MediaRelay.stop()
         BatteryReporter.unregister(this)
         LinkManager.stop()
         Ringer.stop(this)
@@ -84,6 +85,9 @@ class LinkService : Service() {
         LinkManager.on(Protocol.PING) { body ->
             if (body.optBoolean("ring", false)) Ringer.ring(applicationContext)
             else Ringer.stop(applicationContext)
+        }
+        LinkManager.on(Protocol.MEDIA) { body ->
+            MediaRelay.command(body.optString("action"))
         }
         LinkManager.on(Protocol.CLIPBOARD) { body ->
             ClipboardBridge.applyFromPc(applicationContext, body)

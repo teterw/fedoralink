@@ -38,6 +38,9 @@ INTROSPECTION = """
     <method name='ListDevices'>
       <arg name='devices' type='a{ss}' direction='out'/>
     </method>
+    <method name='MediaCommand'>
+      <arg name='action' type='s' direction='in'/>
+    </method>
     <!-- The shell extension reads and writes the selection on our behalf;
          see plugins/clipboard.py for why the daemon can't do it itself. -->
     <method name='SetClipboard'>
@@ -67,6 +70,10 @@ INTROSPECTION = """
     <property name='DeviceName' type='s' access='read'/>
     <property name='BatteryLevel' type='i' access='read'/>
     <property name='BatteryCharging' type='b' access='read'/>
+    <property name='MediaHasSession' type='b' access='read'/>
+    <property name='MediaPlaying' type='b' access='read'/>
+    <property name='MediaTitle' type='s' access='read'/>
+    <property name='MediaArtist' type='s' access='read'/>
   </interface>
 </node>
 """
@@ -134,6 +141,9 @@ class DBusService:
         elif method == "SetClipboard":
             content, force = params.unpack()
             self.daemon.clipboard.set_from_shell(content, force)
+        elif method == "MediaCommand":
+            (action,) = params.unpack()
+            self.daemon.media.command(action)
         elif method == "SendReply":
             key, text = params.unpack()
             self.daemon.notifications.reply(key, text)
@@ -171,6 +181,14 @@ class DBusService:
             return GLib.Variant("i", daemon.battery_level)
         if prop == "BatteryCharging":
             return GLib.Variant("b", daemon.battery_charging)
+        if prop == "MediaHasSession":
+            return GLib.Variant("b", daemon.media.has_session)
+        if prop == "MediaPlaying":
+            return GLib.Variant("b", daemon.media.playing)
+        if prop == "MediaTitle":
+            return GLib.Variant("s", daemon.media.title)
+        if prop == "MediaArtist":
+            return GLib.Variant("s", daemon.media.artist)
         return None
 
     def _set_bridge(self, sender: str, active: bool) -> None:
@@ -247,6 +265,10 @@ class DBusService:
             "DeviceName": GLib.Variant("s", self.daemon.device_name),
             "BatteryLevel": GLib.Variant("i", self.daemon.battery_level),
             "BatteryCharging": GLib.Variant("b", self.daemon.battery_charging),
+            "MediaHasSession": GLib.Variant("b", self.daemon.media.has_session),
+            "MediaPlaying": GLib.Variant("b", self.daemon.media.playing),
+            "MediaTitle": GLib.Variant("s", self.daemon.media.title),
+            "MediaArtist": GLib.Variant("s", self.daemon.media.artist),
         }
 
         try:

@@ -15,8 +15,11 @@ the link alone.
 Off by default, because the surprising behaviour is the one people want
 stopped. Set ``connect_phone_audio`` to true to use the PC as a speaker.
 
-AVRCP is deliberately left connected: it carries media *control*, not
-audio, and disconnecting it would take the media keys with it.
+AVRCP's UUIDs are not in the list below, but dropping A2DP takes AVRCP
+down with it anyway — it rides on the same link, and BlueZ's
+``MediaPlayer1`` object disappears along with the transport. Verified, not
+assumed. So with audio off there is no Bluetooth-native media control
+either, which is why FedoraLink carries its own over RFCOMM instead.
 """
 
 from __future__ import annotations

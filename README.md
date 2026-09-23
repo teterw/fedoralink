@@ -26,6 +26,7 @@ Quick Settings panel next to Wi-Fi and brightness, the way GSConnect does.
 | Ring My PC (audible, for when the laptop is what's lost) | Phone → PC |
 | Low-battery warning on the desktop | Phone → PC |
 | Reply to a message from the desktop | PC → Phone |
+| Media controls in Quick Settings (play/pause, next, previous) | PC → Phone |
 | Lock the desktop when the phone leaves range (off by default) | — |
 | Auto-reconnect when the phone comes back in range | — |
 
@@ -54,7 +55,7 @@ KDE Connect for bulk transfers.
 | 2 | Kotlin `Protocol.Reader` tests | Planned |
 | 3 | Low-battery warning, ring-the-PC, lock-on-leave | In progress |
 | 3 | Notification replies | In progress |
-| 3 | Media control | Idea |
+| 3 | Media control | In progress |
 | 4 | LAN/TCP transport | Planned |
 | 4 | File transfer | Planned |
 
@@ -191,8 +192,12 @@ opt out (`setConnectionPolicy` is a system API, closed to normal apps).
 
 The desktop can, so the daemon drops the audio profiles as they appear. The
 base Bluetooth link is untouched, so the FedoraLink connection itself is
-unaffected. Media *control* over AVRCP is left alone too — that carries no
-audio, and disconnecting it would take the media keys with it.
+unaffected.
+
+Dropping A2DP also takes AVRCP down — Bluetooth's own media control rides on
+the same link — so with audio off you lose the media keys too. FedoraLink
+carries its own media control over RFCOMM to put them back, which works
+whichever way this setting is left.
 
 Set it to `true` to use the PC as a speaker deliberately.
 

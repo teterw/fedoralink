@@ -15,6 +15,7 @@ import Clutter from 'gi://Clutter';
 
 import {Extension, gettext as _} from 'resource:///org/gnome/shell/extensions/extension.js';
 import {QuickMenuToggle, SystemIndicator} from 'resource:///org/gnome/shell/ui/quickSettings.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 
@@ -46,6 +47,9 @@ const DaemonInterface = `
       <arg name="key" type="s" direction="in"/>
       <arg name="text" type="s" direction="in"/>
     </method>
+    <method name="MediaCommand">
+      <arg name="action" type="s" direction="in"/>
+    </method>
     <signal name="ClipboardChanged">
       <arg name="content" type="s"/>
     </signal>
@@ -58,6 +62,10 @@ const DaemonInterface = `
     <property name="DeviceName" type="s" access="read"/>
     <property name="BatteryLevel" type="i" access="read"/>
     <property name="BatteryCharging" type="b" access="read"/>
+    <property name="MediaHasSession" type="b" access="read"/>
+    <property name="MediaPlaying" type="b" access="read"/>
+    <property name="MediaTitle" type="s" access="read"/>
+    <property name="MediaArtist" type="s" access="read"/>
   </interface>
 </node>`;
 
@@ -254,6 +262,8 @@ class FedoraLinkToggle extends QuickMenuToggle {
             this._call('Reconnect');
         });
 
+        this._buildMediaSection();
+
         this.connect('clicked', () => this.menu.open());
 
         this._setUnavailable(_('Daemon not running'));
@@ -270,6 +280,84 @@ class FedoraLinkToggle extends QuickMenuToggle {
         // Fire and forget — every one of these is advisory, and a failure
         // just means the phone stepped out of range.
         this._proxy[`${method}Remote`](() => {});
+    }
+
+    /* Media controls.
+     *
+     * Bluetooth's AVRCP would normally cover this, but it rides on the A2DP
+     * link, and FedoraLink disconnects audio by default so the phone's
+     * music doesn't come out of the PC. Dropping A2DP drops AVRCP with it,
+     * so these buttons are what put the media keys back.
+     */
+    _buildMediaSection() {
+        this._mediaSection = new PopupMenu.PopupMenuSection();
+        this.menu.addMenuItem(this._mediaSection);
+
+        this._mediaLabel = new PopupMenu.PopupMenuItem('', {
+            reactive: false,
+            style_class: 'popup-inactive-menu-item',
+        });
+        this._mediaSection.addMenuItem(this._mediaLabel);
+
+        const controls = new PopupMenu.PopupBaseMenuItem({
+            reactive: false,
+            can_focus: false,
+        });
+        const box = new St.BoxLayout({
+            x_expand: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            style_class: 'fedoralink-media-controls',
+        });
+
+        this._mediaButtons = {};
+        for (const [action, icon] of [
+            ['previous', 'media-skip-backward-symbolic'],
+            ['playpause', 'media-playback-start-symbolic'],
+            ['next', 'media-skip-forward-symbolic'],
+        ]) {
+            const button = new St.Button({
+                style_class: 'icon-button',
+                can_focus: true,
+                child: new St.Icon({icon_name: icon, icon_size: 16}),
+            });
+            button.connect('clicked', () => this._mediaCommand(action));
+            box.add_child(button);
+            this._mediaButtons[action] = button;
+        }
+
+        controls.add_child(box);
+        this._mediaSection.addMenuItem(controls);
+        this._mediaSection.actor.visible = false;
+    }
+
+    _mediaCommand(action) {
+        if (!this._proxy)
+            return;
+        this._proxy.MediaCommandRemote(action, () => {});
+    }
+
+    _syncMedia() {
+        if (!this._mediaSection)
+            return;
+
+        const show = !!this._proxy &&
+            this._proxy.g_name_owner !== null &&
+            this._proxy.Connected &&
+            this._proxy.Authenticated &&
+            this._proxy.MediaHasSession;
+
+        this._mediaSection.actor.visible = show;
+        if (!show)
+            return;
+
+        const title = this._proxy.MediaTitle || _('Unknown track');
+        const artist = this._proxy.MediaArtist;
+        this._mediaLabel.label.text = artist ? `${title} — ${artist}` : title;
+
+        // The button shows the action it performs, not the current state.
+        this._mediaButtons.playpause.child.icon_name = this._proxy.MediaPlaying
+            ? 'media-playback-pause-symbolic'
+            : 'media-playback-start-symbolic';
     }
 
     _showStopRinging() {
@@ -303,6 +391,8 @@ class FedoraLinkToggle extends QuickMenuToggle {
 
         // Whatever was ringing, we can no longer stop it from here.
         this._hideStopRinging();
+
+        this._syncMedia();
 
         for (const item of [this._pingItem, this._clipboardItem])
             item.reactive = false;
@@ -352,6 +442,8 @@ class FedoraLinkToggle extends QuickMenuToggle {
 
         for (const item of [this._pingItem, this._clipboardItem, this._reconnectItem])
             item.reactive = true;
+
+        this._syncMedia();
     }
 
     destroy() {
