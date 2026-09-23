@@ -27,6 +27,7 @@ object Protocol {
     const val PING = "fedoralink.ping"
     const val AUTH = "fedoralink.auth"
     const val MEDIA = "fedoralink.media"
+    const val INPUT = "fedoralink.input"
     const val UPGRADE = "fedoralink.upgrade"
 
     const val FILE_OFFER = "fedoralink.file.offer"

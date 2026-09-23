@@ -437,6 +437,14 @@ but keymaps and modifier state are a separate problem from a touchpad.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Added `test_protocol_parity.py` after the trackpad commit
+  failed to compile: `INPUT` went into `protocol.py` and not `Protocol.kt`.
+  The two files are one contract written twice, and nothing but discipline kept
+  them together — discipline that had just failed. The test reads both as text
+  and compares packet types, protocol versions, the service UUID, the line-size
+  cap and the auth stages. It catches that class of mistake in 0.02s instead of
+  a minute of CI, and it was checked by deleting the constant again to watch it
+  go red.
 - **2026-09-23** — Trackpad added, which needed a decision about how to inject
   input on Wayland. `/dev/uinput` is writable on this machine, which made it
   look like the easy answer — but `getfacl` showed that was an explicit ACL
