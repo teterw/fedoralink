@@ -56,7 +56,7 @@ KDE Connect for bulk transfers.
 | 3 | Low-battery warning, ring-the-PC, lock-on-leave | In progress |
 | 3 | Notification replies | In progress |
 | 3 | Media control | In progress |
-| 4 | LAN/TCP transport | Planned |
+| 4 | LAN/TCP transport | In progress |
 | 4 | File transfer | Planned |
 
 Full plan, with the approach and acceptance criteria for each item, is in
@@ -113,6 +113,33 @@ app but isn't.
 Notification access has to be granted separately, in Android's own Settings —
 there is no runtime permission dialog for it. The app has a button that takes
 you to the right screen.
+
+## The LAN link
+
+When both devices are on the same network, packets move over TCP instead of
+Bluetooth — same protocol, a pipe roughly two orders of magnitude faster. The
+Quick Settings subtitle says **LAN** while it's in use.
+
+There is no discovery protocol. The desktop names its address, port and a fresh
+nonce inside an `fedoralink.upgrade` packet on the Bluetooth link, *after* that
+link has authenticated. Nothing to spoof, no mDNS, no multicast to get through
+a firewall — and the LAN session inherits its trust from a handshake that
+already happened.
+
+The stream is encrypted, because a LAN is a far more hostile place than an
+RFCOMM pairing. Both sides contribute a nonce, HKDF-SHA256 turns the device
+secret plus those nonces into two directional keys, and each packet travels as
+an AES-256-GCM record. The keys are directional so a recorded record can't be
+replayed back at its sender, and the GCM nonce is a counter rather than random,
+because GCM fails catastrophically on nonce reuse.
+
+Bluetooth stays connected underneath. If the LAN link drops — you walk out of
+Wi-Fi range — the link degrades to Bluetooth rather than disappearing, and the
+desktop offers the upgrade again.
+
+The listening socket only exists while a phone is authenticated over Bluetooth,
+so nothing is open when no phone is around. Set `lan_transport` to `false` to
+turn it off entirely.
 
 ## Pairing and trust
 
@@ -174,6 +201,7 @@ Create `~/.config/fedoralink/config.json` and name only what you're changing:
 | `lock_on_disconnect_grace_seconds` | `30` | How long the phone must stay gone first |
 | `pc_ring_seconds` | `10` | How long the desktop rings when the phone calls it |
 | `connect_phone_audio` | `false` | Let the phone use this PC as a Bluetooth speaker |
+| `lan_transport` | `true` | Use a LAN link when both are on the same network |
 
 Read once at startup, so `systemctl --user restart fedoralink` after editing. A
 bad value is logged and ignored rather than fatal — one typo can't stop the

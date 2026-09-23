@@ -62,6 +62,7 @@ const DaemonInterface = `
     <property name="DeviceName" type="s" access="read"/>
     <property name="BatteryLevel" type="i" access="read"/>
     <property name="BatteryCharging" type="b" access="read"/>
+    <property name="OnLan" type="b" access="read"/>
     <property name="MediaHasSession" type="b" access="read"/>
     <property name="MediaPlaying" type="b" access="read"/>
     <property name="MediaTitle" type="s" access="read"/>
@@ -436,6 +437,11 @@ class FedoraLinkToggle extends QuickMenuToggle {
             status = `${level}% · ${_('Charging')}`;
         else
             status = `${level}%`;
+
+        // Worth surfacing: it's the difference between ~200 KB/s and the
+        // speed of the local network.
+        if (this._proxy.OnLan)
+            status = `${status} · ${_('LAN')}`;
 
         this.subtitle = status;
         this.menu.setHeader(batteryIconName(level, charging), name, status);

@@ -52,6 +52,10 @@ object LinkManager {
     private val _authenticated = MutableStateFlow(false)
     val authenticated: StateFlow<Boolean> = _authenticated.asStateFlow()
 
+    /** True while packets are travelling over the LAN rather than Bluetooth. */
+    private val _onLan = MutableStateFlow(false)
+    val onLan: StateFlow<Boolean> = _onLan.asStateFlow()
+
     /** Set while enrolling, so the UI can show the code to compare. */
     private val _pairingCode = MutableStateFlow<String?>(null)
     val pairingCode: StateFlow<String?> = _pairingCode.asStateFlow()
@@ -119,8 +123,14 @@ object LinkManager {
             Log.d(TAG, "refusing to send $type before authentication")
             return false
         }
+        val packet = Protocol.packet(type, body)
+        // Roughly two orders of magnitude faster when it's up. If the write
+        // fails the link is already gone; fall through to Bluetooth rather
+        // than dropping the packet.
+        if (LanTransport.isUp && LanTransport.send(packet)) return true
+
         val active = session.get() ?: return false
-        return active.send(Protocol.packet(type, body))
+        return active.send(packet)
     }
 
     /** Bypasses the gate, for the handshake packets that open it. */
@@ -145,6 +155,12 @@ object LinkManager {
 
         if (type == Protocol.AUTH) {
             onAuth(body)
+            return
+        }
+
+        if (type == Protocol.UPGRADE) {
+            if (_authenticated.value) onUpgradeOffer(body)
+            else Log.w(TAG, "ignoring an upgrade offer before authentication")
             return
         }
 
@@ -293,7 +309,45 @@ object LinkManager {
         MediaRelay.reportNow()
     }
 
+    /**
+     * The PC is offering a LAN link. Take it if we can reach it.
+     *
+     * Deliberately best-effort: failing to upgrade is not an error, it just
+     * means the two aren't on the same network, and Bluetooth carries on.
+     */
+    private fun onUpgradeOffer(body: JSONObject) {
+        val id = peerId ?: return
+        val secret = TrustStore.secretFor(appContext, id)
+        if (secret == null) {
+            Log.w(TAG, "upgrade offer for a PC we have no secret for")
+            return
+        }
+
+        val nonce = body.optString("nonce").ifBlank { null } ?: return
+        val port = body.optInt("port", 0)
+        if (port <= 0) return
+
+        val array = body.optJSONArray("hosts") ?: return
+        val hosts = (0 until array.length()).mapNotNull { array.optString(it).ifBlank { null } }
+        if (hosts.isEmpty()) return
+
+        scope?.launch {
+            if (!LanTransport.connect(hosts, port, nonce, secret, id)) return@launch
+
+            _onLan.value = true
+            // Blocks until the LAN link ends; Bluetooth is still up
+            // underneath, so this is a downgrade rather than a disconnect.
+            LanTransport.readLoop { packet -> dispatch(packet) }
+            _onLan.value = false
+            Log.i(TAG, "LAN link ended; back to Bluetooth")
+        }
+    }
+
     private fun resetAuth() {
+        // No Bluetooth session means no LAN session: its claim to trust came
+        // from that handshake.
+        LanTransport.close()
+        _onLan.value = false
         _authenticated.value = false
         _pairingCode.value = null
         peerId = null

@@ -57,6 +57,46 @@ DEFAULT_PORT = 0
 HANDSHAKE_TIMEOUT_SECONDS = 10
 
 
+def local_addresses() -> list[str]:
+    """This machine's LAN addresses, best first.
+
+    The phone cannot work out where the PC is from a Bluetooth link, so the
+    upgrade offer has to name it. The UDP trick finds the address on the
+    default route without sending anything — connecting a datagram socket
+    only sets its destination — and getaddrinfo fills in any others, for a
+    host with several interfaces.
+    """
+    found: list[str] = []
+
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # Any routable address will do; nothing is transmitted.
+        probe.connect(("192.0.2.1", 9))
+        found.append(probe.getsockname()[0])
+    except OSError:
+        pass
+    finally:
+        probe.close()
+
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            found.append(info[4][0])
+    except OSError:
+        pass
+
+    addresses: list[str] = []
+    for address in found:
+        if address in addresses:
+            continue
+        # Loopback is useless to the phone, and link-local means no DHCP,
+        # so the two are very unlikely to reach each other.
+        if address.startswith(("127.", "169.254.")):
+            continue
+        addresses.append(address)
+
+    return addresses
+
+
 class TcpConnection:
     """One authenticated, encrypted LAN link."""
 

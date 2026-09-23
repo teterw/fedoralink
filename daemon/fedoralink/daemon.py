@@ -30,7 +30,7 @@ from .protocol import (
     UPGRADE,
     make_packet,
 )
-from .tcp import TcpTransport
+from .tcp import TcpTransport, local_addresses
 from .transport import Connection, RfcommTransport
 
 log = logging.getLogger(__name__)
@@ -312,9 +312,15 @@ class Daemon:
         if port is None:
             return
 
+        hosts = local_addresses()
+        if not hosts:
+            log.debug("no LAN address to offer")
+            self.tcp.stop()
+            return
+
         nonce = self.tcp.new_offer(device_id)
-        self.send(UPGRADE, {"port": port, "nonce": nonce})
-        log.info("offered a LAN link on port %d", port)
+        self.send(UPGRADE, {"hosts": hosts, "port": port, "nonce": nonce})
+        log.info("offered a LAN link at %s:%d", hosts[0], port)
 
     def _on_tcp_connected(self, connection) -> None:
         log.info("packets now travel over the LAN link")

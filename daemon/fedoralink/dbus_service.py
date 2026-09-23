@@ -70,6 +70,7 @@ INTROSPECTION = """
     <property name='DeviceName' type='s' access='read'/>
     <property name='BatteryLevel' type='i' access='read'/>
     <property name='BatteryCharging' type='b' access='read'/>
+    <property name='OnLan' type='b' access='read'/>
     <property name='MediaHasSession' type='b' access='read'/>
     <property name='MediaPlaying' type='b' access='read'/>
     <property name='MediaTitle' type='s' access='read'/>
@@ -181,6 +182,8 @@ class DBusService:
             return GLib.Variant("i", daemon.battery_level)
         if prop == "BatteryCharging":
             return GLib.Variant("b", daemon.battery_charging)
+        if prop == "OnLan":
+            return GLib.Variant("b", daemon.on_lan)
         if prop == "MediaHasSession":
             return GLib.Variant("b", daemon.media.has_session)
         if prop == "MediaPlaying":
@@ -265,6 +268,7 @@ class DBusService:
             "DeviceName": GLib.Variant("s", self.daemon.device_name),
             "BatteryLevel": GLib.Variant("i", self.daemon.battery_level),
             "BatteryCharging": GLib.Variant("b", self.daemon.battery_charging),
+            "OnLan": GLib.Variant("b", self.daemon.on_lan),
             "MediaHasSession": GLib.Variant("b", self.daemon.media.has_session),
             "MediaPlaying": GLib.Variant("b", self.daemon.media.playing),
             "MediaTitle": GLib.Variant("s", self.daemon.media.title),

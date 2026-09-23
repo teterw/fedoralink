@@ -283,7 +283,7 @@ the fallback that keeps the "works without a network" promise intact.
 Do these in order — file transfer over RFCOMM alone would be a bad first
 impression of the feature.
 
-### LAN/TCP transport — **Planned**
+### LAN/TCP transport — **In progress**
 
 A second transport used when both devices are on the same network, falling
 back to Bluetooth when they aren't.
@@ -292,19 +292,42 @@ back to Bluetooth when they aren't.
 task is extracting a transport abstraction. `Connection` is already separable
 enough to reuse — it deals in packets and a file descriptor, not in Bluetooth.
 
-**Open questions**
+**Decisions taken** (the open questions, answered)
 
-- Discovery: mDNS, or reuse the Bluetooth link to exchange an address?
-- Does this need TLS, or does the Milestone 2 shared secret cover it? (A LAN
-  is a far more hostile place than an RFCOMM pairing — assume it needs more)
-- Switching transports mid-session without dropping state
+- **Discovery: reuse the Bluetooth link.** The desktop names its address, port
+  and a fresh nonce in a `fedoralink.upgrade` packet after authenticating. No
+  new dependency, no multicast through a firewall, and nothing to spoof — the
+  offer arrives on a channel the peer has already proved itself on. The cost is
+  that a LAN session only starts after a Bluetooth handshake, which is the right
+  order anyway: that's where the secret and the nonces come from.
+- **Encryption: the Milestone 2 secret, not TLS.** HKDF-SHA256 over
+  secret + both nonces yields two directional keys; each packet is an
+  AES-256-GCM record. Directional because one key both ways would let an
+  attacker replay our own records at us; counter-as-nonce because GCM fails
+  catastrophically on nonce reuse. TLS was rejected on cost: Android has no
+  public X.509 builder, so self-signed certs would mean bundling BouncyCastle.
+  Needs `cryptography` on the desktop (a Fedora base package); Android's
+  `javax.crypto` has AES-GCM natively.
+- **Switching: Bluetooth stays up underneath.** The LAN link is preferred for
+  sending while it exists; if it drops the link degrades rather than
+  disappearing, and the desktop re-offers. The listening socket exists only
+  while a phone is authenticated, so no port is open otherwise.
 
 **Acceptance criteria**
 
-- [ ] Same Wi-Fi: connects over TCP, measurably faster than RFCOMM
-- [ ] No shared network: falls back to Bluetooth, unprompted
-- [ ] Leaving Wi-Fi mid-session doesn't drop the link
-- [ ] An attacker on the same network cannot read the stream
+- [~] Same Wi-Fi: connects over TCP — built, but never run between two real
+      devices, so "measurably faster" is unmeasured
+- [x] No shared network: falls back to Bluetooth, unprompted — the upgrade is
+      best-effort and a failure to connect is not an error
+- [x] Leaving Wi-Fi mid-session doesn't drop the link — Bluetooth stays
+      connected underneath and the desktop re-offers
+- [x] An attacker on the same network cannot read the stream — AES-256-GCM
+      with keys neither side chooses alone
+
+The crypto is the part that *is* verified: HKDF is pinned to RFC 5869 test
+case 1 on both sides, and the Kotlin tests open ciphertext the Python side
+actually produced, so the two implementations provably interoperate. The socket
+plumbing around it has never carried a byte between two machines.
 
 ### File transfer — **Planned**
 
