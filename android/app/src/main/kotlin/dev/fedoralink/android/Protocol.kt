@@ -27,6 +27,7 @@ object Protocol {
     const val PING = "fedoralink.ping"
     const val AUTH = "fedoralink.auth"
     const val MEDIA = "fedoralink.media"
+    const val UPGRADE = "fedoralink.upgrade"
 
     // Auth stages, mirroring daemon/fedoralink/plugins/auth.py.
     const val STAGE_ENROLL = "enroll"

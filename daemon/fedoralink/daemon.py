@@ -27,8 +27,10 @@ from .protocol import (
     MIN_PROTOCOL_VERSION,
     PROTOCOL_VERSION,
     SERVICE_UUID,
+    UPGRADE,
     make_packet,
 )
+from .tcp import TcpTransport
 from .transport import Connection, RfcommTransport
 
 log = logging.getLogger(__name__)
@@ -48,6 +50,16 @@ class Daemon:
             on_connected=self._on_connected,
             on_disconnected=self._on_disconnected,
             on_packet=self._on_packet,
+        )
+        # The LAN link rides on trust the Bluetooth session established,
+        # so it gets its own callbacks: coming up must not re-run the
+        # identity handshake, and going away must not look like the phone
+        # left — Bluetooth is still there underneath.
+        self.tcp = TcpTransport(
+            on_connected=self._on_tcp_connected,
+            on_disconnected=self._on_tcp_disconnected,
+            on_packet=self._on_packet,
+            secret_for=lambda device_id: self.auth.store.secret_for(device_id),
         )
 
         self.notifications = NotificationPlugin(self)
@@ -77,6 +89,9 @@ class Daemon:
         self._system_bus: Gio.DBusConnection | None = None
         self._reconnect_source: int | None = None
         self._device_id: str | None = None
+
+        # Device id of the authenticated peer, for the LAN offer.
+        self._peer_device_id: str | None = None
 
         # Set once the peer has proved it holds this device's secret.
         # Until then the link carries nothing but identity and auth.
@@ -130,6 +145,7 @@ class Daemon:
             except Exception:
                 log.exception("plugin %s failed to stop", plugin.name)
         self.transport.stop()
+        self.tcp.stop()
         self.dbus.stop()
 
     # ----------------------------------------------------------- outbound
@@ -145,7 +161,17 @@ class Daemon:
             # proved who it is.
             log.debug("refusing to send %s before authentication", packet_type)
             return False
-        return self.transport.send(make_packet(packet_type, body))
+
+        packet = make_packet(packet_type, body)
+        # Prefer the LAN link when it's up; it is the same packets down a
+        # pipe roughly two orders of magnitude faster.
+        if self.tcp.connection is not None:
+            return self.tcp.send(packet)
+        return self.transport.send(packet)
+
+    @property
+    def on_lan(self) -> bool:
+        return self.tcp.connection is not None
 
     # ------------------------------------------------------ connection io
 
@@ -176,6 +202,10 @@ class Daemon:
     def _on_disconnected(self, connection: Connection) -> None:
         self.connected = False
         self.authenticated = False
+        self._peer_device_id = None
+        # No Bluetooth session means no LAN session either: the LAN link's
+        # whole claim to trust came from that handshake.
+        self.tcp.stop()
         self.device_name = ""
         self.battery_level = -1
         self.battery_charging = False
@@ -230,7 +260,9 @@ class Daemon:
             return
 
         log.info("handshake with %s (protocol %d)", self.device_name, version)
-        self.auth.begin(body.get("deviceId"), self.device_name)
+        device_id = body.get("deviceId")
+        self._peer_device_id = device_id if isinstance(device_id, str) else None
+        self.auth.begin(device_id, self.device_name)
 
     def device_id(self) -> str:
         """A stable identifier for this desktop.
@@ -255,6 +287,46 @@ class Daemon:
             return
         self.authenticated = value
         self.dbus.emit_changed()
+
+        if value:
+            self._offer_lan_upgrade()
+
+    def _offer_lan_upgrade(self) -> None:
+        """Invite the phone onto a LAN link, if there's one to be had.
+
+        Only ever called after Bluetooth authentication, so the address and
+        nonce travel over a channel the peer has already proved itself on —
+        which is why this needs no discovery protocol and has nothing to
+        spoof.
+        """
+        if not self.config["lan_transport"]:
+            return
+
+        device_id = self._peer_device_id
+        if device_id is None:
+            return
+
+        # The socket exists only while a phone is authenticated, so there
+        # is nothing listening when none is around.
+        port = self.tcp.start()
+        if port is None:
+            return
+
+        nonce = self.tcp.new_offer(device_id)
+        self.send(UPGRADE, {"port": port, "nonce": nonce})
+        log.info("offered a LAN link on port %d", port)
+
+    def _on_tcp_connected(self, connection) -> None:
+        log.info("packets now travel over the LAN link")
+        self.dbus.emit_changed()
+
+    def _on_tcp_disconnected(self, connection) -> None:
+        # Bluetooth is still underneath, so this is a downgrade rather than
+        # a disconnection. Offer again in case it was a transient blip.
+        log.info("LAN link dropped; falling back to Bluetooth")
+        self.dbus.emit_changed()
+        if self.authenticated:
+            self._offer_lan_upgrade()
 
     def forget_devices(self) -> int:
         """Revoke every enrolled device and hang up on the current one.

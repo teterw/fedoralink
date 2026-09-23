@@ -34,6 +34,10 @@ DEFAULTS: dict[str, Any] = {
     # so media suddenly comes out of the laptop instead of the phone —
     # which is surprising, and not something FedoraLink asked for.
     "connect_phone_audio": False,
+    # Use a LAN link when both devices are on the same network, falling
+    # back to Bluetooth otherwise. The listening socket only exists while a
+    # phone is authenticated over Bluetooth, so nothing is open otherwise.
+    "lan_transport": True,
 }
 
 
