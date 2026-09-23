@@ -66,6 +66,9 @@ NEEDED=()
 [[ -n "${MISSING_GI:-}" ]] && NEEDED+=(python3-gobject)
 command -v wl-copy   >/dev/null || NEEDED+=(wl-clipboard)
 command -v bluetoothctl >/dev/null || NEEDED+=(bluez)
+# Ring My PC falls back to a single notification chime without this, which
+# is audible but easy to miss when the laptop is under a cushion.
+command -v canberra-gtk-play >/dev/null || NEEDED+=(libcanberra-gtk3)
 
 if (( ${#NEEDED[@]} )); then
     info "Installing missing packages: ${NEEDED[*]}"
