@@ -38,6 +38,10 @@ DEFAULTS: dict[str, Any] = {
     # back to Bluetooth otherwise. The listening socket only exists while a
     # phone is authenticated over Bluetooth, so nothing is open otherwise.
     "lan_transport": True,
+    # Let the phone act as a trackpad. The portal asks for consent the
+    # first time it is actually used, so this only decides whether the
+    # daemon will ask at all.
+    "remote_input": True,
 }
 
 

@@ -63,6 +63,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".TrackpadActivity"
+            android:exported="false"
+            android:label="@string/trackpad" />
+
         <!-- Share sheet route for files. Finishes immediately and lets
              the foreground service carry the transfer, which can take
              minutes over Bluetooth. -->

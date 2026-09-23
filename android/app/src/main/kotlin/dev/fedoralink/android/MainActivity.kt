@@ -97,6 +97,15 @@ class MainActivity : AppCompatActivity() {
                 override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             }
 
+        binding.trackpadButton.setOnClickListener {
+            if (LinkManager.isConnected()) {
+                startActivity(Intent(this, TrackpadActivity::class.java))
+            } else {
+                Toast.makeText(this, R.string.clipboard_not_connected, Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+
         binding.unlinkButton.setOnClickListener {
             TrustStore.revokeAll(this)
             Toast.makeText(this, R.string.unlinked, Toast.LENGTH_SHORT).show()

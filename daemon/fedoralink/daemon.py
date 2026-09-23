@@ -22,6 +22,7 @@ from .plugins.media import MediaPlugin
 from .plugins.notification import NotificationPlugin
 from .plugins.ping import PingPlugin
 from .plugins.presence import PresencePlugin
+from .plugins.remote_input import RemoteInputPlugin
 from .protocol import (
     AUTH,
     IDENTITY,
@@ -79,6 +80,7 @@ class Daemon:
             self.files,
             PresencePlugin(self),
             AudioPlugin(self),
+            RemoteInputPlugin(self),
         ]
 
         # type -> plugins, built once so packet dispatch is a dict lookup.

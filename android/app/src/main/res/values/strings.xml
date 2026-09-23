@@ -29,6 +29,9 @@
     <string name="ring_pc_sent">Ringing your PC</string>
     <string name="file_send">Send to PC</string>
     <string name="file_nothing_shared">Nothing to send</string>
+    <string name="trackpad">Use as trackpad</string>
+    <string name="trackpad_surface">Trackpad surface</string>
+    <string name="trackpad_hint">One finger moves the pointer · tap to click · two-finger tap for right click · two fingers to scroll · long press then drag</string>
     <string name="unlink">Forget paired PCs</string>
     <string name="unlinked">Paired PCs forgotten — you\'ll pair again next time</string>
     <string name="grant_permissions">Grant Bluetooth permissions</string>

@@ -79,6 +79,13 @@
             android:text="@string/ring_pc" />
 
         <Button
+            android:id="@+id/trackpadButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/trackpad" />
+
+        <Button
             android:id="@+id/unlinkButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

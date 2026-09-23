@@ -28,6 +28,7 @@ Quick Settings panel next to Wi-Fi and brightness, the way GSConnect does.
 | Reply to a message from the desktop | PC → Phone |
 | Media controls in Quick Settings (play/pause, next, previous) | PC → Phone |
 | File transfer, with progress and cancel | Both |
+| Phone as a trackpad for the PC | Phone → PC |
 | Lock the desktop when the phone leaves range (off by default) | — |
 | Auto-reconnect when the phone comes back in range | — |
 
@@ -59,6 +60,7 @@ KDE Connect for bulk transfers.
 | 3 | Media control | Built |
 | 4 | LAN/TCP transport | Built |
 | 4 | File transfer | Built |
+| — | Phone as a trackpad | Built |
 
 **Built** means implemented, tested where testable and CI-green — but not yet
 run on real hardware. **Shipped** means someone has used it on a phone. The
@@ -118,6 +120,27 @@ app but isn't.
 Notification access has to be granted separately, in Android's own Settings —
 there is no runtime permission dialog for it. The app has a button that takes
 you to the right screen.
+
+## Phone as a trackpad
+
+**Use as trackpad** in the app turns the phone into a touchpad for the PC. The
+gestures match a laptop touchpad, so there is nothing to learn: one finger moves
+the pointer, a tap is a left click, a two-finger tap is a right click, two
+fingers scroll, and a long press then drag holds the button down.
+
+Input is injected through `org.freedesktop.portal.RemoteDesktop`, so GNOME asks
+for your consent the first time the phone actually sends something — once per
+daemon session, and never if you don't use the feature. Set `remote_input` to
+`false` to stop it asking at all.
+
+Writing to `/dev/uinput` would have been the shorter path and was rejected: it
+needs the user in the `input` group or a udev rule, and Fedora ships neither, so
+the feature would have silently done nothing for most people. Wayland has no
+unprivileged synthetic-input path by design; the portal is the supported one.
+
+Motion is coalesced to about 60 Hz on the phone. Touch events arrive at over
+twice that and each one is a packet — over Bluetooth, forwarding all of them
+would flood the link and make the pointer *less* responsive.
 
 ## Sending files
 
@@ -224,6 +247,7 @@ Create `~/.config/fedoralink/config.json` and name only what you're changing:
 | `pc_ring_seconds` | `10` | How long the desktop rings when the phone calls it |
 | `connect_phone_audio` | `false` | Let the phone use this PC as a Bluetooth speaker |
 | `lan_transport` | `true` | Use a LAN link when both are on the same network |
+| `remote_input` | `true` | Allow the phone to act as a trackpad |
 
 Read once at startup, so `systemctl --user restart fedoralink` after editing. A
 bad value is logged and ignored rather than fatal — one typo can't stop the

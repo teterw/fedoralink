@@ -396,10 +396,53 @@ cleanly", and failing cleanly is the half that's built.
 
 ---
 
+## Beyond the original plan
+
+### Phone as a trackpad — **Built**
+
+One finger moves the pointer, tap clicks, two-finger tap right-clicks, two
+fingers scroll, long-press-then-drag holds the button. Laptop touchpad
+conventions, so there is nothing to learn.
+
+**Input goes through `org.freedesktop.portal.RemoteDesktop`, not
+`/dev/uinput`.** uinput was the short path and is the wrong one: it needs the
+user in the `input` group or a udev rule, and Fedora ships neither. Checked
+rather than assumed — on the development machine it *was* writable, but only
+because of an explicit ACL plus `input` group membership, so relying on it
+would have meant the feature silently doing nothing for most people. Wayland
+has no unprivileged synthetic-input path by design and the portal is the
+supported one.
+
+The portal session is created lazily, on the first input packet, so the consent
+dialog only appears for someone who actually opens the trackpad. A declined
+prompt is remembered until the next reconnect, so a swipe doesn't re-ask forty
+times a second.
+
+- [x] Pointer motion, left/right/middle buttons, scroll, drag
+- [x] Motion coalesced to ~60 Hz — touch events arrive faster and each is a
+      packet, so forwarding all of them would flood Bluetooth
+- [x] Hostile input rejected: NaN, non-numbers and absurd magnitudes can't
+      fling the pointer or poison the compositor
+- [x] Portal choreography verified live — `CreateSession` and
+      `SelectDevices` both answered success and the derived request path
+      matched the portal's own, without triggering the consent dialog
+- [ ] Actually drive a pointer from a phone
+
+Keyboard input is deliberately out of scope for now. The portal supports it,
+but keymaps and modifier state are a separate problem from a touchpad.
+
+---
+
 ## Notes
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Trackpad added, which needed a decision about how to inject
+  input on Wayland. `/dev/uinput` is writable on this machine, which made it
+  look like the easy answer — but `getfacl` showed that was an explicit ACL
+  plus `input` group membership, neither of which Fedora sets up, and no udev
+  rule ships it. So the portal it is: no group, no package, no root, at the
+  cost of a consent dialog. Verified the portal handshake live up to the prompt.
 - **2026-09-23** — Audit pass. Four real defects, all found by reading rather
   than by anything failing:
 

@@ -37,6 +37,7 @@ CLIPBOARD = "fedoralink.clipboard"
 PING = "fedoralink.ping"
 AUTH = "fedoralink.auth"
 MEDIA = "fedoralink.media"
+INPUT = "fedoralink.input"
 UPGRADE = "fedoralink.upgrade"
 
 # File transfer. Chunks carry base64 inside the same NDJSON stream rather
