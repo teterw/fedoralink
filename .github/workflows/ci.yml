@@ -23,12 +23,14 @@ jobs:
 
       - name: Byte-compile
         working-directory: daemon
-        run: python -m compileall -q fedoralink
+        run: python -m compileall -q fedoralink tests
 
       - name: Lint
         run: |
           python -m pip install ruff
-          ruff check daemon/fedoralink
+          # daemon/, not daemon/fedoralink: the narrower path skipped the
+          # tests, so a commit whose test files failed ruff went green.
+          ruff check daemon/
 
       - name: Test
         run: |

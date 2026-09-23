@@ -425,9 +425,12 @@ Running log of decisions and discoveries that changed the plan. Newest first.
   are fixed-length, so none can prefix another — not a defect, and "fixing" it
   would be noise.
 
-  Also worth recording: the lint step and the commit went in as two shell
-  commands rather than one chain, so a lint failure did not stop the push. One
-  commit on main fails `ruff`; the next fixes it. Chain them.
+  Two process findings from the same slip. The lint step and the commit went in
+  as separate shell commands rather than one chain, so a non-zero exit stopped
+  nothing and a lint-failing commit reached main. Worse, **CI did not catch it
+  either**: it ran `ruff check daemon/fedoralink`, which skips `daemon/tests`
+  entirely, so the bad commit went green. Both steps now cover `daemon/`, tests
+  included — a lint gate that cannot see the test suite is not a gate.
 - **2026-09-23** — Every planned item is now implemented, which exposed a flaw
   in this file's own legend: eight items sat at **In progress**, defined as
   "someone is actively writing it", when nobody was. There was no state for
