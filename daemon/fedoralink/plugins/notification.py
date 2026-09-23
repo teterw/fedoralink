@@ -41,6 +41,12 @@ class NotificationPlugin(Plugin):
         # the two sides ping-pong dismissals forever.
         self._self_closed: set[int] = set()
 
+        # Local id -> callback, for notifications this daemon raised that
+        # carry buttons of their own (device approval, for one). Kept apart
+        # from the mirror maps: these aren't mirrors of anything, and
+        # answering one must not send a dismissal to the phone.
+        self._own_actions: dict[int, Any] = {}
+
     def start(self) -> None:
         self._bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
 
@@ -123,6 +129,63 @@ class NotificationPlugin(Plugin):
         self._remote_to_local[key] = local_id
         self._local_to_remote[local_id] = key
 
+    def ask(
+        self,
+        summary: str,
+        body: str,
+        actions: list[tuple[str, str]],
+        on_action,
+        *,
+        urgent: bool = True,
+    ) -> int | None:
+        """Post a notification with buttons and route the answer back.
+
+        `actions` is [(key, label)]. `on_action` is called with the chosen
+        key, or with None if the notification is closed without an answer
+        — a dialog the user swipes away has to resolve, not hang.
+        """
+        if self._bus is None:
+            return None
+
+        hints = {
+            "desktop-entry": GLib.Variant("s", "org.fedoralink.FedoraLink"),
+        }
+        if urgent:
+            # Critical, so it survives Do Not Disturb and doesn't time out
+            # before anyone reads it.
+            hints["urgency"] = GLib.Variant("y", 2)
+
+        flat: list[str] = []
+        for key, label in actions:
+            flat += [key, label]
+
+        args = GLib.Variant(
+            "(susssasa{sv}i)",
+            (
+                "FedoraLink", 0, "phone-symbolic", summary, body, flat, hints, 0,
+            ),
+        )
+
+        try:
+            result = self._bus.call_sync(
+                FDO_BUS, FDO_PATH, FDO_IFACE, "Notify", args,
+                GLib.VariantType("(u)"), Gio.DBusCallFlags.NONE, -1, None,
+            )
+        except GLib.Error as exc:
+            log.warning("could not ask the user: %s", exc)
+            return None
+
+        local_id = result.unpack()[0]
+        self._own_actions[local_id] = on_action
+        return local_id
+
+    def cancel_ask(self, local_id: int | None) -> None:
+        """Withdraw a question whose answer no longer matters."""
+        if local_id is None:
+            return
+        if self._own_actions.pop(local_id, None) is not None:
+            self._close_local(local_id)
+
     def _dismiss_locally(self, key: str | None) -> None:
         """The phone dismissed it — clear our mirror without echoing back."""
         if not key:
@@ -152,6 +215,14 @@ class NotificationPlugin(Plugin):
 
         if local_id in self._self_closed:
             self._self_closed.discard(local_id)
+            self._own_actions.pop(local_id, None)
+            return
+
+        # One of ours, dismissed without an answer. Resolve it as "no
+        # answer" rather than leaving the asker waiting forever.
+        callback = self._own_actions.pop(local_id, None)
+        if callback is not None:
+            callback(None)
             return
 
         key = self._local_to_remote.pop(local_id, None)
@@ -168,6 +239,15 @@ class NotificationPlugin(Plugin):
         self, _conn, _sender, _path, _iface, _signal, params, _user_data
     ) -> None:
         local_id, action = params.unpack()
+
+        callback = self._own_actions.pop(local_id, None)
+        if callback is not None:
+            # Answered. Take it off screen so a stale question can't be
+            # answered twice.
+            self._close_local(local_id)
+            callback(action)
+            return
+
         key = self._local_to_remote.get(local_id)
         if key is None or action != DISMISS_ACTION:
             return

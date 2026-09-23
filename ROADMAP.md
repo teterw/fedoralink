@@ -102,7 +102,7 @@ exposes it.
 
 ## Milestone 2 — Make the link trustworthy
 
-### Handshake authentication — **Planned**
+### Handshake authentication — **In progress**
 
 Today the identity handshake exchanges `deviceName`, `deviceType`,
 `protocolVersion` and `capabilities`, and nothing else. All trust rests on
@@ -115,21 +115,34 @@ connection, display it as a short code on both ends for the human to confirm,
 persist it on each side, and check it in the handshake before any plugin sees
 a packet. An unauthenticated peer gets the handshake and nothing else.
 
-**Open questions**
+**Decisions taken** (the open questions, answered)
 
-- Where does the secret live on each side? (`~/.local/share/fedoralink` and
-  Android `EncryptedSharedPreferences` are the obvious homes)
-- Does this bump `PROTOCOL_VERSION`, or degrade for older peers? Given what
-  it protects, refusing an old peer outright is defensible
-- Does the code get confirmed in the GNOME extension, a dialog, or the CLI?
+- **Storage.** `~/.local/share/fedoralink/devices.json` at `0600`, written
+  atomically via temp-file-and-rename so a crash mid-write can't leave a
+  truncated store that locks out every device. Phone side is
+  `EncryptedSharedPreferences`, falling back to ordinary private prefs with a
+  log line if the Keystore is unavailable.
+- **Version.** `PROTOCOL_VERSION` is 2 and `MIN_PROTOCOL_VERSION` is 2 — an
+  old peer is refused, not degraded. A version 1 peer has no secret, so
+  accepting it is the exact thing this prevents. The log says "update the app"
+  rather than dropping silently.
+- **Confirmation.** Desktop notification with Approve/Reject, because that's
+  where the human and the trust store both are. The phone only displays the
+  code for comparison, which kept the phone side to a status line.
 
 **Acceptance criteria**
 
-- [ ] A paired-but-unauthorised device cannot read the clipboard or receive
-      notifications
-- [ ] The confirmation code is shown on both devices and must match
-- [ ] The secret survives a daemon restart and a phone reboot
-- [ ] Revoking a device is possible without re-pairing Bluetooth
+- [x] A paired-but-unauthorised device cannot read the clipboard or receive
+      notifications — gated both inbound and outbound, 30 tests
+- [x] The confirmation code is shown on both devices and must match — the
+      phone refuses an offer whose code doesn't match the secret's fingerprint
+- [x] The secret survives a daemon restart and a phone reboot
+- [x] Revoking a device is possible without re-pairing Bluetooth —
+      `ForgetDevices` over D-Bus, or "Forget paired PCs" in the app
+
+Unverified on hardware: no phone here, so the round trip has never actually
+run. The logic is covered by tests on the Python side; the Kotlin half has
+none.
 
 ### Tests for the protocol layer — **Shipped**
 
@@ -268,6 +281,13 @@ Send files both ways, with a chunked packet type and progress reporting.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Authentication landed. Two design notes worth keeping. The
+  fingerprint is a hash of the secret, not a slice of it — the code appears on
+  a lock screen, where notifications land, and showing key bytes there would
+  hand the secret to anyone glancing at the phone. And `isConnected()` on the
+  phone now means connected *and* authenticated: all nine callers meant "can I
+  send?", and the answer before the handshake is no, so folding it in beat
+  making every caller check twice.
 - **2026-09-23** — Quick wins bundle built. Two of the three needed settings,
   so there is now a `config.py` reading `~/.config/fedoralink/config.json` —
   stdlib-only and validated key-by-key, so one typo can't stop the daemon.

@@ -13,7 +13,10 @@ object Protocol {
     /** Must match SERVICE_UUID in the Python daemon. */
     val SERVICE_UUID: UUID = UUID.fromString("3a94ef31-dc98-495b-bf8b-e4796714e90c")
 
-    const val PROTOCOL_VERSION = 1
+    // 2 added authentication. Nothing degrades past it: a version 1 peer
+    // has no device secret, and an unauthenticated peer must get nothing.
+    const val PROTOCOL_VERSION = 2
+    const val MIN_PROTOCOL_VERSION = 2
 
     const val IDENTITY = "fedoralink.identity"
     const val BATTERY = "fedoralink.battery"
@@ -22,6 +25,14 @@ object Protocol {
     const val NOTIFICATION_ACTION = "fedoralink.notification.action"
     const val CLIPBOARD = "fedoralink.clipboard"
     const val PING = "fedoralink.ping"
+    const val AUTH = "fedoralink.auth"
+
+    // Auth stages, mirroring daemon/fedoralink/plugins/auth.py.
+    const val STAGE_ENROLL = "enroll"
+    const val STAGE_CHALLENGE = "challenge"
+    const val STAGE_RESPONSE = "response"
+    const val STAGE_OK = "ok"
+    const val STAGE_FAIL = "fail"
 
     private const val MAX_LINE_BYTES = 512 * 1024
 

@@ -6,6 +6,8 @@
     <string name="status_connected_to">Connected to %1$s</string>
     <string name="status_stopped">Link off</string>
     <string name="status_disconnected">Not connected</string>
+    <string name="status_authenticating">Verifying your PC…</string>
+    <string name="status_pairing_code">Pairing code: %1$s — approve it on your PC</string>
 
     <string name="channel_link_status">Link status</string>
     <string name="channel_link_status_desc">Shows whether your PC is connected. Required by Android to keep the Bluetooth link alive.</string>
@@ -25,6 +27,8 @@
     <string name="send_clipboard">Send clipboard to PC</string>
     <string name="ring_pc">Ring my PC</string>
     <string name="ring_pc_sent">Ringing your PC</string>
+    <string name="unlink">Forget paired PCs</string>
+    <string name="unlinked">Paired PCs forgotten — you\'ll pair again next time</string>
     <string name="grant_permissions">Grant Bluetooth permissions</string>
     <string name="permissions_granted">Bluetooth permissions granted ✓</string>
 

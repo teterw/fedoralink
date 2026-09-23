@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import signal
+from pathlib import Path
 from typing import Any
 
 from gi.repository import Gio, GLib
@@ -11,12 +13,20 @@ from gi.repository import Gio, GLib
 from . import config as config_module
 from .alert import Alerter
 from .dbus_service import DBusService
+from .plugins.auth import AuthPlugin
 from .plugins.battery import BatteryPlugin
 from .plugins.clipboard import ClipboardPlugin
 from .plugins.notification import NotificationPlugin
 from .plugins.ping import PingPlugin
 from .plugins.presence import PresencePlugin
-from .protocol import IDENTITY, PROTOCOL_VERSION, SERVICE_UUID, make_packet
+from .protocol import (
+    AUTH,
+    IDENTITY,
+    MIN_PROTOCOL_VERSION,
+    PROTOCOL_VERSION,
+    SERVICE_UUID,
+    make_packet,
+)
 from .transport import Connection, RfcommTransport
 
 log = logging.getLogger(__name__)
@@ -41,11 +51,13 @@ class Daemon:
         self.notifications = NotificationPlugin(self)
         self.clipboard = ClipboardPlugin(self)
         self.ping = PingPlugin(self)
+        self.auth = AuthPlugin(self)
         self.plugins = [
             BatteryPlugin(self),
             self.notifications,
             self.clipboard,
             self.ping,
+            self.auth,
             PresencePlugin(self),
         ]
 
@@ -59,6 +71,11 @@ class Daemon:
         self._loop = GLib.MainLoop()
         self._system_bus: Gio.DBusConnection | None = None
         self._reconnect_source: int | None = None
+        self._device_id: str | None = None
+
+        # Set once the peer has proved it holds this device's secret.
+        # Until then the link carries nothing but identity and auth.
+        self.authenticated = False
 
         # State mirrored onto D-Bus for the shell extension.
         self.connected = False
@@ -112,13 +129,24 @@ class Daemon:
 
     # ----------------------------------------------------------- outbound
 
+    #: The two types that have to cross an unauthenticated link, because
+    #: they are how it becomes authenticated.
+    _PRE_AUTH_TYPES = (IDENTITY, AUTH)
+
     def send(self, packet_type: str, body: dict[str, Any] | None = None) -> bool:
+        if not self.authenticated and packet_type not in self._PRE_AUTH_TYPES:
+            # A plugin reacting to something local — a clipboard copy, a
+            # battery report — must not leak it to a peer that hasn't
+            # proved who it is.
+            log.debug("refusing to send %s before authentication", packet_type)
+            return False
         return self.transport.send(make_packet(packet_type, body))
 
     # ------------------------------------------------------ connection io
 
     def _on_connected(self, connection: Connection) -> None:
         self.connected = True
+        self.authenticated = False
         self.device_name = connection.device_name
 
         self.send(
@@ -126,6 +154,7 @@ class Daemon:
             {
                 "deviceName": GLib.get_host_name(),
                 "deviceType": "desktop",
+                "deviceId": self.device_id(),
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": [p.name for p in self.plugins],
             },
@@ -141,6 +170,7 @@ class Daemon:
 
     def _on_disconnected(self, connection: Connection) -> None:
         self.connected = False
+        self.authenticated = False
         self.device_name = ""
         self.battery_level = -1
         self.battery_charging = False
@@ -157,11 +187,13 @@ class Daemon:
         packet_type = packet["type"]
 
         if packet_type == IDENTITY:
-            name = packet["body"].get("deviceName")
-            if name:
-                self.device_name = name
-                self.dbus.emit_changed()
-            log.info("handshake with %s", self.device_name)
+            self._on_identity(packet["body"])
+            return
+
+        if not self.authenticated and packet_type != AUTH:
+            # The gate. A peer that hasn't proved who it is gets no
+            # clipboard, no notifications, nothing.
+            log.warning("dropping %s from an unauthenticated peer", packet_type)
             return
 
         handlers = self._routes.get(packet_type)
@@ -171,6 +203,78 @@ class Daemon:
 
         for plugin in handlers:
             plugin.on_packet(packet)
+
+    def _on_identity(self, body: dict[str, Any]) -> None:
+        name = body.get("deviceName")
+        if name:
+            self.device_name = name
+            self.dbus.emit_changed()
+
+        version = body.get("protocolVersion")
+        if not isinstance(version, int) or version < MIN_PROTOCOL_VERSION:
+            # Nothing to degrade to: a version 1 peer has no secret, and
+            # accepting it unauthenticated is exactly what this exists to
+            # prevent. Say so clearly — "update your phone app" is a much
+            # better message than a silent disconnect.
+            log.error(
+                "%s speaks protocol %r; %d or newer is required. Update the "
+                "FedoraLink app on the phone.",
+                self.device_name or "peer", version, MIN_PROTOCOL_VERSION,
+            )
+            self.drop_connection("peer protocol too old")
+            return
+
+        log.info("handshake with %s (protocol %d)", self.device_name, version)
+        self.auth.begin(body.get("deviceId"), self.device_name)
+
+    def device_id(self) -> str:
+        """A stable identifier for this desktop.
+
+        machine-id is per-install and survives a hostname change, which is
+        what the phone needs to recognise us again. Hashed rather than sent
+        raw: it is a known fingerprinting vector, and the phone only needs
+        it to be stable, not meaningful.
+        """
+        if self._device_id is None:
+            try:
+                raw = Path("/etc/machine-id").read_text(encoding="utf-8").strip()
+            except OSError:
+                raw = GLib.get_host_name()
+            self._device_id = hashlib.sha256(
+                f"fedoralink:{raw}".encode()
+            ).hexdigest()[:32]
+        return self._device_id
+
+    def set_authenticated(self, value: bool) -> None:
+        if self.authenticated == value:
+            return
+        self.authenticated = value
+        self.dbus.emit_changed()
+
+    def forget_devices(self) -> int:
+        """Revoke every enrolled device and hang up on the current one.
+
+        Bluetooth pairing is left alone: this is about which devices this
+        daemon trusts, which is a separate question from which ones can
+        reach it.
+        """
+        store = self.auth.store
+        count = 0
+        for device_id in list(store.known_devices()):
+            if store.revoke(device_id):
+                count += 1
+
+        if self.connected:
+            self.drop_connection("device trust revoked")
+
+        log.info("forgot %d device(s)", count)
+        return count
+
+    def drop_connection(self, reason: str) -> None:
+        """Hang up. Used when a peer fails or refuses authentication."""
+        log.info("dropping the link: %s", reason)
+        self.authenticated = False
+        self.transport.disconnect()
 
     # --------------------------------------------------------------- state
 

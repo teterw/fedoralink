@@ -48,6 +48,18 @@ object LinkManager {
     private val _peerName = MutableStateFlow<String?>(null)
     val peerName: StateFlow<String?> = _peerName.asStateFlow()
 
+    /** True once the PC has proved it holds this phone's secret. */
+    private val _authenticated = MutableStateFlow(false)
+    val authenticated: StateFlow<Boolean> = _authenticated.asStateFlow()
+
+    /** Set while enrolling, so the UI can show the code to compare. */
+    private val _pairingCode = MutableStateFlow<String?>(null)
+    val pairingCode: StateFlow<String?> = _pairingCode.asStateFlow()
+
+    // Per-connection auth state. Cleared by resetAuth() on every close.
+    private var peerId: String? = null
+    private var ourNonce: String? = null
+
     private var scope: CoroutineScope? = null
     private var jobs = mutableListOf<Job>()
     private val session = AtomicReference<Session?>(null)
@@ -90,12 +102,35 @@ object LinkManager {
         _peerName.value = null
     }
 
-    fun isConnected(): Boolean = session.get() != null
+    /**
+     * Whether the link is usable — connected *and* authenticated.
+     *
+     * Every caller means "can I send something?", and before the handshake
+     * completes the answer is no: send() would refuse it. Folding auth in
+     * here keeps the tile, the toasts and the relays all honest instead of
+     * each having to remember to check twice.
+     */
+    fun isConnected(): Boolean = session.get() != null && _authenticated.value
 
     fun send(type: String, body: JSONObject = JSONObject()): Boolean {
+        if (!_authenticated.value && type != Protocol.IDENTITY && type != Protocol.AUTH) {
+            // A notification or clipboard update must not reach a PC that
+            // hasn't proved who it is.
+            Log.d(TAG, "refusing to send $type before authentication")
+            return false
+        }
         val active = session.get() ?: return false
         return active.send(Protocol.packet(type, body))
     }
+
+    /** Bypasses the gate, for the handshake packets that open it. */
+    private fun sendUnauthenticated(type: String, body: JSONObject): Boolean {
+        val active = session.get() ?: return false
+        return active.send(Protocol.packet(type, body))
+    }
+
+    private fun sendAuth(stage: String, body: JSONObject = JSONObject()): Boolean =
+        sendUnauthenticated(Protocol.AUTH, body.put("stage", stage))
 
     // ------------------------------------------------------------ inbound
 
@@ -104,8 +139,18 @@ object LinkManager {
         val body = packet.optJSONObject("body") ?: JSONObject()
 
         if (type == Protocol.IDENTITY) {
-            _peerName.value = body.optString("deviceName").ifBlank { null }
-            Log.i(TAG, "handshake with ${_peerName.value}")
+            onIdentity(body)
+            return
+        }
+
+        if (type == Protocol.AUTH) {
+            onAuth(body)
+            return
+        }
+
+        if (!_authenticated.value) {
+            // The gate. Nothing from an unproven PC reaches a handler.
+            Log.w(TAG, "dropping $type from an unauthenticated PC")
             return
         }
 
@@ -118,6 +163,139 @@ object LinkManager {
             runCatching { handler(body) }
                 .onFailure { Log.e(TAG, "handler for $type threw", it) }
         }
+    }
+
+    // --------------------------------------------------------------- auth
+
+    private fun onIdentity(body: JSONObject) {
+        _peerName.value = body.optString("deviceName").ifBlank { null }
+
+        val version = body.optInt("protocolVersion", 0)
+        if (version < Protocol.MIN_PROTOCOL_VERSION) {
+            Log.e(
+                TAG,
+                "PC speaks protocol $version; ${Protocol.MIN_PROTOCOL_VERSION} or " +
+                    "newer is required. Update the daemon on the PC.",
+            )
+            session.get()?.close()
+            return
+        }
+
+        val id = body.optString("deviceId").ifBlank { null }
+        if (id == null) {
+            Log.e(TAG, "PC sent no deviceId; refusing the link")
+            session.get()?.close()
+            return
+        }
+
+        peerId = id
+        Log.i(TAG, "handshake with ${_peerName.value} (protocol $version)")
+
+        // Challenge a PC we already know, so it has to prove itself too.
+        // A PC we don't know drives enrollment; wait for its offer.
+        val secret = TrustStore.secretFor(appContext, id)
+        if (secret != null) {
+            val nonce = Crypto.newNonce()
+            ourNonce = nonce
+            sendAuth(Protocol.STAGE_CHALLENGE, JSONObject().put("nonce", nonce))
+        }
+    }
+
+    private fun onAuth(body: JSONObject) {
+        when (body.optString("stage")) {
+            Protocol.STAGE_ENROLL -> onEnroll(body)
+            Protocol.STAGE_CHALLENGE -> answerChallenge(body.optString("nonce"))
+            Protocol.STAGE_RESPONSE -> checkResponse(body.optString("mac", ""))
+            Protocol.STAGE_OK -> Log.d(TAG, "PC accepted our response")
+            Protocol.STAGE_FAIL -> {
+                Log.e(TAG, "PC refused this phone: ${body.optString("reason")}")
+                session.get()?.close()
+            }
+            else -> Log.w(TAG, "unknown auth stage in ${body}")
+        }
+    }
+
+    /**
+     * The PC is offering a secret for a link it doesn't recognise.
+     *
+     * We store it immediately and show the code: approval happens on the
+     * PC, where the human is. A secret for a PC we never approve is inert
+     * — it only ever unlocks a link that PC also has to approve.
+     */
+    private fun onEnroll(body: JSONObject) {
+        val id = peerId
+        val secret = body.optString("secret").ifBlank { null }
+        if (id == null || secret == null) {
+            Log.w(TAG, "malformed enrollment offer")
+            return
+        }
+
+        val code = Crypto.fingerprint(secret)
+        if (code == null || code != body.optString("code")) {
+            // The digits the PC displayed have to be the digits this
+            // secret produces, or one of the two is not what it claims.
+            Log.e(TAG, "enrollment code does not match the secret; refusing")
+            session.get()?.close()
+            return
+        }
+
+        TrustStore.trust(appContext, id, secret)
+        _pairingCode.value = code
+        Log.i(TAG, "enrolled with PC $id, code $code")
+    }
+
+    private fun answerChallenge(nonce: String?) {
+        val id = peerId
+        if (nonce.isNullOrBlank() || id == null) {
+            Log.w(TAG, "malformed challenge")
+            return
+        }
+
+        val secret = TrustStore.secretFor(appContext, id)
+        if (secret == null) {
+            Log.w(TAG, "challenged by a PC we have no secret for")
+            return
+        }
+
+        val mac = Crypto.respond(secret, nonce)
+        if (mac == null) {
+            Log.w(TAG, "could not answer the challenge")
+            return
+        }
+        sendAuth(Protocol.STAGE_RESPONSE, JSONObject().put("mac", mac))
+    }
+
+    private fun checkResponse(mac: String) {
+        val nonce = ourNonce
+        val id = peerId
+        // One challenge, one answer.
+        ourNonce = null
+
+        if (nonce == null || id == null) {
+            Log.w(TAG, "unexpected auth response")
+            return
+        }
+
+        val secret = TrustStore.secretFor(appContext, id)
+        if (secret == null || !Crypto.verify(secret, nonce, mac)) {
+            Log.e(TAG, "PC failed our challenge; dropping the link")
+            sendAuth(Protocol.STAGE_FAIL, JSONObject().put("reason", "bad response"))
+            session.get()?.close()
+            return
+        }
+
+        Log.i(TAG, "PC authenticated")
+        sendAuth(Protocol.STAGE_OK)
+        _authenticated.value = true
+        _pairingCode.value = null
+        BatteryReporter.reportNow(appContext)
+    }
+
+    private fun resetAuth() {
+        _authenticated.value = false
+        _pairingCode.value = null
+        peerId = null
+        ourNonce = null
     }
 
     // -------------------------------------------------------------- loops
@@ -216,8 +394,10 @@ object LinkManager {
         _state.value = State.CONNECTED
         _peerName.value = socket.remoteDeviceName()
 
+        resetAuth()
         sendIdentity()
-        BatteryReporter.reportNow(appContext)
+        // The first battery report waits for authentication — see
+        // checkResponse(). Sending it here would leak to an unproven PC.
 
         scope?.launch { newSession.readLoop() }
     }
@@ -226,19 +406,21 @@ object LinkManager {
         val body = JSONObject().apply {
             put("deviceName", Build.MODEL ?: "Android phone")
             put("deviceType", "phone")
+            put("deviceId", TrustStore.deviceId(appContext))
             put("protocolVersion", Protocol.PROTOCOL_VERSION)
             put(
                 "capabilities",
                 JSONArray(listOf("battery", "notification", "clipboard", "ping")),
             )
         }
-        send(Protocol.IDENTITY, body)
+        sendUnauthenticated(Protocol.IDENTITY, body)
     }
 
     private fun onSessionClosed(closed: Session) {
         if (session.compareAndSet(closed, null)) {
             _state.value = if (scope != null) State.WAITING else State.STOPPED
             _peerName.value = null
+            resetAuth()
             Log.i(TAG, "link closed")
         }
     }

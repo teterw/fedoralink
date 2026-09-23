@@ -29,6 +29,15 @@ INTROSPECTION = """
     <method name='StopRinging'/>
     <method name='SendClipboard'/>
     <method name='Reconnect'/>
+    <!-- Revoke every enrolled device. The next connection re-enrolls,
+         with a fresh secret and a fresh approval prompt. Bluetooth
+         pairing is untouched. -->
+    <method name='ForgetDevices'>
+      <arg name='count' type='i' direction='out'/>
+    </method>
+    <method name='ListDevices'>
+      <arg name='devices' type='a{ss}' direction='out'/>
+    </method>
     <!-- The shell extension reads and writes the selection on our behalf;
          see plugins/clipboard.py for why the daemon can't do it itself. -->
     <method name='SetClipboard'>
@@ -42,6 +51,7 @@ INTROSPECTION = """
       <arg name='content' type='s'/>
     </signal>
     <property name='Connected' type='b' access='read'/>
+    <property name='Authenticated' type='b' access='read'/>
     <property name='DeviceName' type='s' access='read'/>
     <property name='BatteryLevel' type='i' access='read'/>
     <property name='BatteryCharging' type='b' access='read'/>
@@ -117,6 +127,14 @@ class DBusService:
             self._set_bridge(sender, active)
         elif method == "Reconnect":
             self.daemon.try_reconnect()
+        elif method == "ForgetDevices":
+            count = self.daemon.forget_devices()
+            invocation.return_value(GLib.Variant("(i)", (count,)))
+            return
+        elif method == "ListDevices":
+            devices = self.daemon.auth.store.known_devices()
+            invocation.return_value(GLib.Variant("(a{ss})", (devices,)))
+            return
         else:
             invocation.return_dbus_error(
                 "org.freedesktop.DBus.Error.UnknownMethod", method
@@ -130,6 +148,8 @@ class DBusService:
         daemon = self.daemon
         if prop == "Connected":
             return GLib.Variant("b", daemon.connected)
+        if prop == "Authenticated":
+            return GLib.Variant("b", daemon.authenticated)
         if prop == "DeviceName":
             return GLib.Variant("s", daemon.device_name)
         if prop == "BatteryLevel":
@@ -193,6 +213,7 @@ class DBusService:
 
         changed = {
             "Connected": GLib.Variant("b", self.daemon.connected),
+            "Authenticated": GLib.Variant("b", self.daemon.authenticated),
             "DeviceName": GLib.Variant("s", self.daemon.device_name),
             "BatteryLevel": GLib.Variant("i", self.daemon.battery_level),
             "BatteryCharging": GLib.Variant("b", self.daemon.battery_charging),

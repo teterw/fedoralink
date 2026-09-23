@@ -48,7 +48,7 @@ KDE Connect for bulk transfers.
 |---|---|---|
 | 1 | Stop Ringing | In progress |
 | 1 | Fix `Ringer.stop()` not cancelling vibration | In progress |
-| 2 | Handshake authentication | Planned |
+| 2 | Handshake authentication | In progress |
 | 2 | Tests for the protocol layer | Shipped |
 | 2 | Kotlin `Protocol.Reader` tests | Planned |
 | 3 | Low-battery warning, ring-the-PC, lock-on-leave | In progress |
@@ -111,6 +111,45 @@ app but isn't.
 Notification access has to be granted separately, in Android's own Settings —
 there is no runtime permission dialog for it. The app has a button that takes
 you to the right screen.
+
+## Pairing and trust
+
+Bluetooth pairing decides which devices can *reach* the daemon. It says
+nothing about which ones should be handed your clipboard and every
+notification that crosses your screen — so there is a second gate.
+
+The first time a phone connects, the desktop mints a 256-bit secret and both
+ends show the same six-digit code. Approve it from the desktop notification
+once the digits match, and the phone is enrolled. Every connection after that
+is a challenge–response over that secret: one side sends a random nonce, the
+other returns `HMAC-SHA256(secret, nonce)`. Both directions are checked, so the
+phone verifies the PC too.
+
+Until that completes the link carries nothing but the handshake. The Quick
+Settings toggle reads **Verifying phone…** and every action is inert, because
+the daemon refuses to send anything else.
+
+To revoke a phone — leaving Bluetooth pairing alone:
+
+```
+busctl --user call org.fedoralink.Daemon /org/fedoralink/Daemon \
+    org.fedoralink.Daemon ForgetDevices
+
+# and to see what's enrolled
+busctl --user call org.fedoralink.Daemon /org/fedoralink/Daemon \
+    org.fedoralink.Daemon ListDevices
+```
+
+From the phone, **Forget paired PCs** in the app does the same. Either way the
+next connection re-enrolls with a fresh secret and a fresh approval prompt.
+
+Secrets live in `~/.local/share/fedoralink/devices.json`, created `0600`, and
+in `EncryptedSharedPreferences` on the phone.
+
+**This needs both sides updated.** Protocol 2 is the version that added
+authentication, and there is nothing to degrade to — a version 1 peer has no
+secret, and accepting it unauthenticated is the exact thing this prevents. An
+old peer is refused with a log line saying so.
 
 ## Settings
 

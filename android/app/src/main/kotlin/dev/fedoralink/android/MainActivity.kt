@@ -97,13 +97,29 @@ class MainActivity : AppCompatActivity() {
                 override fun onNothingSelected(parent: AdapterView<*>?) = Unit
             }
 
+        binding.unlinkButton.setOnClickListener {
+            TrustStore.revokeAll(this)
+            Toast.makeText(this, R.string.unlinked, Toast.LENGTH_SHORT).show()
+        }
+
         lifecycleScope.launch {
-            combine(LinkManager.state, LinkManager.peerName) { state, peer ->
-                when (state) {
-                    LinkManager.State.CONNECTED ->
+            combine(
+                LinkManager.state,
+                LinkManager.peerName,
+                LinkManager.authenticated,
+                LinkManager.pairingCode,
+            ) { state, peer, authed, code ->
+                when {
+                    // Enrolling: the code is the whole point of the screen,
+                    // so it outranks the connection status.
+                    code != null -> getString(R.string.status_pairing_code, code)
+                    state == LinkManager.State.CONNECTED && authed ->
                         getString(R.string.status_connected_to, peer ?: "PC")
-                    LinkManager.State.WAITING -> getString(R.string.status_waiting)
-                    LinkManager.State.STOPPED -> getString(R.string.status_disconnected)
+                    state == LinkManager.State.CONNECTED ->
+                        getString(R.string.status_authenticating)
+                    state == LinkManager.State.WAITING ->
+                        getString(R.string.status_waiting)
+                    else -> getString(R.string.status_disconnected)
                 }
             }.collect { binding.statusText.text = it }
         }

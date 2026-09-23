@@ -29,6 +29,9 @@ const DaemonInterface = `
     <method name="StopRinging"/>
     <method name="SendClipboard"/>
     <method name="Reconnect"/>
+    <method name="ForgetDevices">
+      <arg name="count" type="i" direction="out"/>
+    </method>
     <method name="SetClipboard">
       <arg name="content" type="s" direction="in"/>
       <arg name="force" type="b" direction="in"/>
@@ -40,6 +43,7 @@ const DaemonInterface = `
       <arg name="content" type="s"/>
     </signal>
     <property name="Connected" type="b" access="read"/>
+    <property name="Authenticated" type="b" access="read"/>
     <property name="DeviceName" type="s" access="read"/>
     <property name="BatteryLevel" type="i" access="read"/>
     <property name="BatteryCharging" type="b" access="read"/>
@@ -250,6 +254,14 @@ class FedoraLinkToggle extends QuickMenuToggle {
             return;
         }
 
+        if (!this._proxy.Authenticated) {
+            // Connected, but the phone hasn't proved who it is yet — and
+            // until it does the daemon refuses to send anything, so the
+            // actions would silently do nothing.
+            this._setUnavailable(_('Verifying phone…'));
+            return;
+        }
+
         const name = this._proxy.DeviceName || _('Phone');
         const level = this._proxy.BatteryLevel;
         const charging = this._proxy.BatteryCharging;
@@ -314,7 +326,9 @@ class FedoraLinkIndicator extends SystemIndicator {
     _sync() {
         this._toggle.sync();
         this._indicator.visible =
-            this._proxy.g_name_owner !== null && this._proxy.Connected;
+            this._proxy.g_name_owner !== null &&
+            this._proxy.Connected &&
+            this._proxy.Authenticated;
     }
 
     destroy() {

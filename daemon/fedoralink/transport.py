@@ -253,6 +253,17 @@ class RfcommTransport:
         self.connection.send(packet)
         return True
 
+    def disconnect(self) -> None:
+        """Hang up on the current peer.
+
+        Used when a device fails authentication: the socket has to go, or
+        it sits there able to keep trying. Closing fires the same close
+        path a dropped link does, so on_disconnected still runs and the
+        plugins still clean up.
+        """
+        if self.connection is not None:
+            self.connection.close()
+
     def _handle_method_call(
         self,
         _conn: Gio.DBusConnection,

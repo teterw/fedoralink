@@ -17,7 +17,12 @@ from typing import Any
 
 # Bumped when a change would break an older peer. The identity exchange
 # carries it so each side can refuse or degrade rather than misbehave.
-PROTOCOL_VERSION = 1
+#
+# 2 added authentication. There is no degrading past this one: a version 1
+# peer has no device secret, and the whole point is that an unauthenticated
+# peer gets nothing.
+PROTOCOL_VERSION = 2
+MIN_PROTOCOL_VERSION = 2
 
 # RFCOMM service UUID. Must match SERVICE_UUID in the Android app.
 SERVICE_UUID = "3a94ef31-dc98-495b-bf8b-e4796714e90c"
@@ -30,6 +35,7 @@ NOTIFICATION_DISMISS = "fedoralink.notification.dismiss"
 NOTIFICATION_ACTION = "fedoralink.notification.action"
 CLIPBOARD = "fedoralink.clipboard"
 PING = "fedoralink.ping"
+AUTH = "fedoralink.auth"
 
 # A phone can legitimately push a large clipboard, but nothing in this
 # protocol has any business being megabytes. Cap it so a desync or a
