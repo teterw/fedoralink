@@ -30,6 +30,7 @@ die()   { printf '%s fail%s %s\n' "${RED}" "${RESET}" "$*" >&2; exit 1; }
 # --------------------------------------------------------------- uninstall
 
 uninstall() {
+    rm -f "${HOME}/.local/share/nautilus/scripts/Send to Phone"
     info "Removing FedoraLink"
     systemctl --user disable --now fedoralink.service 2>/dev/null || true
     rm -f "${UNIT_DIR}/fedoralink.service"
@@ -118,6 +119,16 @@ exec python3 -m fedoralink "\$@"
 EOF
 chmod +x "${BIN_DIR}/fedoralink"
 ok "Daemon installed"
+
+# Right-click → Scripts → Send to Phone. A plain script, so it needs no
+# nautilus-python and survives Nautilus API changes.
+NAUTILUS_SCRIPTS="${HOME}/.local/share/nautilus/scripts"
+if [[ -f "${SRC}/daemon/data/nautilus-send-to-phone" ]]; then
+    mkdir -p "${NAUTILUS_SCRIPTS}"
+    install -m 755 "${SRC}/daemon/data/nautilus-send-to-phone" \
+        "${NAUTILUS_SCRIPTS}/Send to Phone"
+    ok "Files integration installed"
+fi
 
 info "Installing GNOME Shell extension"
 rm -rf "${EXT_DIR}"

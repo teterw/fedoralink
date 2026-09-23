@@ -117,16 +117,13 @@ you to the right screen.
 
 ## Sending files
 
-From the phone: **Share → Send to PC**, any file type. From the desktop, over
-D-Bus for now:
+From the phone: **Share → Send to PC**, any file type.
+
+From the desktop: right-click in Files → **Scripts → Send to Phone**, or
 
 ```
-busctl --user call org.fedoralink.Daemon /org/fedoralink/Daemon \
-    org.fedoralink.Daemon SendFile s ~/Pictures/holiday.jpg
-
-# and to stop one mid-flight
-busctl --user call org.fedoralink.Daemon /org/fedoralink/Daemon \
-    org.fedoralink.Daemon CancelTransfer
+fedoralink send ~/Pictures/holiday.jpg
+fedoralink cancel
 ```
 
 Incoming files ask before saving, land in your Downloads folder, and are
@@ -312,6 +309,24 @@ These are platform limits, not bugs, and they shaped the design:
   and no focus requirement, and Mutter gives it a real `owner-changed`
   signal, which makes desktop → phone sync event-driven rather than polled.
   The daemon falls back to `wl-copy` only when the extension isn't running.
+
+## Command line
+
+The installer puts `fedoralink` in `~/.local/bin`. With no arguments it runs the
+daemon, which is how systemd starts it; the subcommands are a thin client over
+the same D-Bus interface the Quick Settings toggle uses.
+
+```
+fedoralink status          # link state, battery, what's playing
+fedoralink send FILE...    # send files to the phone
+fedoralink cancel          # cancel the transfer in flight
+fedoralink ping            # ring the phone
+fedoralink devices         # list enrolled phones
+fedoralink forget          # revoke them all
+```
+
+`status` exits non-zero when no phone is connected, so it works in a script or
+a status bar.
 
 ## Development
 

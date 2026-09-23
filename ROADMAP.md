@@ -40,6 +40,7 @@ What's built, what's next, and what each item actually involves.
 | Find My Phone (rings through silent/DND) | PC → Phone | `plugins/ping.py`, `Ringer.kt` |
 | Auto-reconnect when the phone comes back in range | — | `daemon.py`, `LinkManager.kt` |
 | CI Android job fixed (`setup-android` v3 → v4) | — | `.github/workflows/` |
+| `fedoralink` CLI (`status`, `send`, `ping`, `devices`…) | — | `cli.py` |
 | Keep phone audio on the phone (`connect_phone_audio`, off) | — | `plugins/audio.py` |
 
 ---
@@ -356,9 +357,10 @@ debuggable.
 
 **Still to do**
 
-- [ ] A nicer way to start a send from the desktop. `SendFile` over `busctl`
-      works today; Files integration or a drop target on the Quick Settings
-      toggle would be better
+- [x] A nicer way to start a send from the desktop — `fedoralink send`, plus
+      **Scripts → Send to Phone** in Files. A plain Nautilus script rather than
+      a `nautilus-python` extension: no extra dependency, and it survives
+      Nautilus API changes
 - [ ] Run it. Nothing here has moved a byte between a real phone and a real PC
 
 **Acceptance criteria**
@@ -384,6 +386,12 @@ cleanly", and failing cleanly is the half that's built.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Added a CLI, which turned out to be the cheapest way to make
+  any of this testable by hand. `fedoralink status` run against the live daemon
+  found a real bug in its own output: the old installed daemon has no
+  `Authenticated` property, so a plain `get_cached_property(...) or False` read
+  it as "authenticated: no" — a lie with the same shape as the truth. It now
+  distinguishes an absent property from a false one and says so.
 - **2026-09-23** — File transfer complete on both sides and compiling. The
   phone half went via a branch and PR #1 rather than straight to main, because
   CI only builds `main` and pull requests — a branch push compiles nothing, so

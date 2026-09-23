@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Nautilus script: right-click → Scripts → Send to Phone.
+#
+# A script rather than a nautilus-python extension on purpose: extensions
+# need the nautilus-python package and break on Nautilus API changes, while
+# this is a shell script Nautilus has supported unchanged for twenty years.
+#
+# Nautilus passes the selection as arguments and also in the environment;
+# the arguments are absolute paths already, so prefer them and fall back to
+# the newline-separated variable.
+set -euo pipefail
+
+FEDORALINK="${HOME}/.local/bin/fedoralink"
+[[ -x "${FEDORALINK}" ]] || FEDORALINK="fedoralink"
+
+notify() {
+    command -v notify-send >/dev/null && notify-send -a FedoraLink "$1" "${2:-}" || true
+}
+
+files=()
+if (( $# )); then
+    files=("$@")
+elif [[ -n "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS:-}" ]]; then
+    while IFS= read -r line; do
+        [[ -n "${line}" ]] && files+=("${line}")
+    done <<< "${NAUTILUS_SCRIPT_SELECTED_FILE_PATHS}"
+fi
+
+if (( ${#files[@]} == 0 )); then
+    notify "Nothing selected"
+    exit 1
+fi
+
+if ! output=$("${FEDORALINK}" send "${files[@]}" 2>&1); then
+    notify "Could not send" "${output}"
+    exit 1
+fi
+
+# The daemon raises its own progress notification, so don't double up.
+exit 0
