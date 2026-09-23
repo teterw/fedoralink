@@ -32,7 +32,9 @@ jobs:
 
       - name: Test
         run: |
-          python -m pip install pytest
+          # cryptography provides AES-GCM for the LAN transport; the stdlib
+          # has no cipher API. Prebuilt wheels, so this is quick.
+          python -m pip install pytest cryptography
           python -m pytest -q
 
   android:

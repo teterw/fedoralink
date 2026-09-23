@@ -69,6 +69,9 @@ command -v bluetoothctl >/dev/null || NEEDED+=(bluez)
 # Ring My PC falls back to a single notification chime without this, which
 # is audible but easy to miss when the laptop is under a cushion.
 command -v canberra-gtk-play >/dev/null || NEEDED+=(libcanberra-gtk3)
+# AES-GCM for the LAN transport. Without it the daemon still runs, and
+# still works over Bluetooth — it just won't offer a LAN link.
+python3 -c 'import cryptography' 2>/dev/null || NEEDED+=(python3-cryptography)
 
 if (( ${#NEEDED[@]} )); then
     info "Installing missing packages: ${NEEDED[*]}"
