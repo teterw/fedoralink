@@ -78,4 +78,9 @@ dependencies {
     // Keystore-backed storage for the shared secret. Alpha is the newest
     // release line; 1.0.0 is stable but unmaintained.
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    testImplementation("junit:junit:4.13.2")
+    // Unit tests run on a plain JVM, where android.jar's org.json is a stub
+    // that throws. This puts a real implementation on the test classpath.
+    testImplementation("org.json:json:20240303")
 }

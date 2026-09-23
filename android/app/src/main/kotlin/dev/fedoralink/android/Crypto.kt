@@ -1,9 +1,9 @@
 package dev.fedoralink.android
 
-import android.util.Base64
 import java.math.BigInteger
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.Base64
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -24,7 +24,7 @@ object Crypto {
     fun newNonce(): String {
         val bytes = ByteArray(NONCE_BYTES)
         random.nextBytes(bytes)
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(bytes)
     }
 
     /**
@@ -71,7 +71,10 @@ object Crypto {
         )
     }
 
+    // java.util.Base64 rather than android.util.Base64: available since
+    // API 26 (our minSdk), and it means this object has no Android
+    // framework dependency at all, so it runs under plain JVM unit tests.
     private fun decode(value: String): ByteArray? = runCatching {
-        Base64.decode(value, Base64.DEFAULT)
+        Base64.getDecoder().decode(value)
     }.getOrNull()?.takeIf { it.isNotEmpty() }
 }
