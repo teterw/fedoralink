@@ -4,8 +4,8 @@
 every feature, and RFCOMM hands it a byte stream that can split anywhere.
 These tests drive it with the splits a real socket produces.
 
-Pure Python by design — ``protocol.py`` imports no gi, so this suite runs
-without PyGObject.
+``protocol.py`` pulls in nothing from ``gi.repository``, so these run with
+no main loop and no D-Bus — just bytes in, packets out.
 """
 
 from __future__ import annotations

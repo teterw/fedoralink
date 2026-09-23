@@ -23,6 +23,8 @@
     <string name="grant_notification_access">Grant notification access</string>
     <string name="notification_access_granted">Notification access granted ✓</string>
     <string name="send_clipboard">Send clipboard to PC</string>
+    <string name="ring_pc">Ring my PC</string>
+    <string name="ring_pc_sent">Ringing your PC</string>
     <string name="grant_permissions">Grant Bluetooth permissions</string>
     <string name="permissions_granted">Bluetooth permissions granted ✓</string>
 

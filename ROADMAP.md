@@ -153,7 +153,7 @@ it is pinning real behaviour rather than passing vacuously.
 
 ## Milestone 3 — Things the data already supports
 
-### Quick wins bundle — **Planned**
+### Quick wins bundle — **In progress**
 
 Three small features where the plumbing is already in place.
 
@@ -161,24 +161,24 @@ Three small features where the plumbing is already in place.
 D-Bus. A threshold check in `plugins/battery.py` calling
 `self.daemon.notifications.show_local(...)` is most of it.
 
-- [ ] Notifies once when the phone drops below the threshold, not on every packet
-- [ ] Re-arms after the phone charges back up
-- [ ] Threshold is configurable
+- [x] Notifies once when the phone drops below the threshold, not on every packet
+- [x] Re-arms after the phone charges back up
+- [x] Threshold is configurable
 
 **Ring the PC from the phone.** The inverse of Find My Phone is half-built:
 `PingPlugin.on_packet` already shows a desktop notification when the phone
 pings, it just doesn't make a sound.
 
-- [ ] Audible alert on the desktop, not just a notification
-- [ ] A button in the Android app that triggers it
-- [ ] Works when the desktop is locked
+- [x] Audible alert on the desktop, not just a notification
+- [x] A button in the Android app that triggers it
+- [ ] Works when the desktop is locked — unverified, needs a real session
 
 **Lock the desktop when the phone leaves range.** The daemon already gets
 `on_disconnected`; this calls the screensaver's D-Bus `Lock`.
 
-- [ ] Off by default, behind a setting — a flaky link that locks your screen
+- [x] Off by default, behind a setting — a flaky link that locks your screen
       is infuriating
-- [ ] A grace period, so a momentary drop doesn't lock you out mid-sentence
+- [x] A grace period, so a momentary drop doesn't lock you out mid-sentence
 
 ### Kotlin `Protocol.Reader` tests — **Planned**
 
@@ -268,6 +268,18 @@ Send files both ways, with a chunked packet type and progress reporting.
 
 Running log of decisions and discoveries that changed the plan. Newest first.
 
+- **2026-09-23** — Quick wins bundle built. Two of the three needed settings,
+  so there is now a `config.py` reading `~/.config/fedoralink/config.json` —
+  stdlib-only and validated key-by-key, so one typo can't stop the daemon.
+  Ring-the-PC needed somewhere to make noise: `alert.py` re-spawns
+  `canberra-gtk-play` on a timer, falling back to the notification's
+  `sound-name` hint when it isn't installed. Lock-on-leave became
+  `plugins/presence.py` — the Plugin base already had connect/disconnect
+  hooks, so it needed no new machinery.
+- **2026-09-23** — `fedoralink.ping` now carries three meanings, not two: no
+  `ring` key is the link test, `ring: true` rings, `ring: false` silences.
+  Treating absent and false alike would pop a "Ping from your phone"
+  notification while silencing the PC alert. Pinned by a test.
 - **2026-09-23** — Protocol tests landed. Mutation-testing them turned up
   something worth recording: the Python `PacketReader` is immune to
   mid-multibyte-character splits *by construction* (it buffers bytes, decodes

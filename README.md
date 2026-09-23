@@ -22,7 +22,10 @@ Quick Settings panel next to Wi-Fi and brightness, the way GSConnect does.
 | Notification mirroring, with two-way dismissal | Phone → PC |
 | Clipboard sync | Both |
 | Phone battery in Quick Settings | Phone → PC |
-| Find My Phone (rings through silent/DND) | PC → Phone |
+| Find My Phone, with Stop Ringing | PC → Phone |
+| Ring My PC (audible, for when the laptop is what's lost) | Phone → PC |
+| Low-battery warning on the desktop | Phone → PC |
+| Lock the desktop when the phone leaves range (off by default) | — |
 | Auto-reconnect when the phone comes back in range | — |
 
 ## What it doesn't do
@@ -48,7 +51,7 @@ KDE Connect for bulk transfers.
 | 2 | Handshake authentication | Planned |
 | 2 | Tests for the protocol layer | Shipped |
 | 2 | Kotlin `Protocol.Reader` tests | Planned |
-| 3 | Low-battery warning, ring-the-PC, lock-on-leave | Planned |
+| 3 | Low-battery warning, ring-the-PC, lock-on-leave | In progress |
 | 3 | Notification replies | Planned |
 | 3 | Media control | Idea |
 | 4 | LAN/TCP transport | Planned |
@@ -108,6 +111,40 @@ app but isn't.
 Notification access has to be granted separately, in Android's own Settings —
 there is no runtime permission dialog for it. The app has a button that takes
 you to the right screen.
+
+## Settings
+
+Everything has a default, so there is no config file until you want one.
+Create `~/.config/fedoralink/config.json` and name only what you're changing:
+
+```json
+{
+  "battery_low_threshold": 25,
+  "lock_on_disconnect": true,
+  "lock_on_disconnect_grace_seconds": 60
+}
+```
+
+| Key | Default | Meaning |
+|---|---|---|
+| `battery_low_warning` | `true` | Warn on the desktop when the phone gets low |
+| `battery_low_threshold` | `15` | Percentage that counts as low |
+| `lock_on_disconnect` | `false` | Lock the session when the phone leaves range |
+| `lock_on_disconnect_grace_seconds` | `30` | How long the phone must stay gone first |
+| `pc_ring_seconds` | `10` | How long the desktop rings when the phone calls it |
+
+Read once at startup, so `systemctl --user restart fedoralink` after editing. A
+bad value is logged and ignored rather than fatal — one typo can't stop the
+daemon from starting.
+
+**`lock_on_disconnect` is off for a reason.** A Bluetooth link drops for
+uninteresting reasons — the phone's service restarting, a microwave, walking
+past a doorway — and a screen that locks every time is worse than no feature.
+The grace period exists so the phone has to actually stay gone.
+
+**Ring My PC needs `canberra-gtk-play`** to ring properly (the `libcanberra-gtk3`
+package). Without it the alert falls back to a single notification chime, which
+is audible but much easier to miss.
 
 ## Architecture
 

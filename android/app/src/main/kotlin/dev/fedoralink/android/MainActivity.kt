@@ -74,6 +74,15 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
 
+        binding.ringPcButton.setOnClickListener {
+            val message = if (LinkManager.isConnected() && Ringer.ringPc()) {
+                R.string.ring_pc_sent
+            } else {
+                R.string.clipboard_not_connected
+            }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+        }
+
         binding.deviceSpinner.onItemSelectedListener =
             object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(

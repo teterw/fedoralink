@@ -173,15 +173,39 @@ class NotificationPlugin(Plugin):
             return
         self.send(NOTIFICATION_ACTION, {"key": key, "action": "dismiss"})
 
-    def show_local(self, summary: str, body: str = "") -> None:
-        """Post a desktop notification that isn't a mirror of anything."""
+    def show_local(
+        self,
+        summary: str,
+        body: str = "",
+        *,
+        urgent: bool = False,
+        sound_name: str | None = None,
+    ) -> None:
+        """Post a desktop notification that isn't a mirror of anything.
+
+        `urgent` marks it critical, which is what keeps it on screen under
+        Do Not Disturb. `sound_name` is a freedesktop sound-theme name for
+        the notification server to play — the fallback for making noise
+        when canberra-gtk-play isn't installed.
+        """
         if self._bus is None:
             return
+
+        hints = {
+            "desktop-entry": GLib.Variant("s", "org.fedoralink.FedoraLink"),
+        }
+        if urgent:
+            hints["urgency"] = GLib.Variant("y", 2)
+        if sound_name:
+            hints["sound-name"] = GLib.Variant("s", sound_name)
+
         args = GLib.Variant(
             "(susssasa{sv}i)",
             (
                 "FedoraLink", 0, "phone-symbolic", summary, body, [],
-                {"desktop-entry": GLib.Variant("s", "org.fedoralink.FedoraLink")},
+                hints,
+                # Critical notifications ignore the timeout anyway; for the
+                # rest, let the server decide.
                 -1,
             ),
         )

@@ -1,4 +1,4 @@
-"""Find-my-phone, and a round-trip test that the link actually works."""
+"""Find-my-phone, find-my-PC, and a round-trip test that the link works."""
 
 from __future__ import annotations
 
@@ -30,8 +30,37 @@ class PingPlugin(Plugin):
         return self.send(PING, {"ring": False})
 
     def on_packet(self, packet: dict[str, Any]) -> None:
-        message = packet["body"].get("message") or "Ping from your phone"
+        body = packet["body"]
+
+        # Three cases, and conflating them would show a spurious
+        # notification when the phone asks us to stop.
+        if "ring" not in body:
+            # A plain ping — the round-trip link test. Say so quietly.
+            message = body.get("message") or "Ping from your phone"
+            self.daemon.notifications.show_local(
+                summary=self.daemon.device_name or "FedoraLink",
+                body=message,
+            )
+            return
+
+        if not body["ring"]:
+            self.stop_pc_ring()
+            return
+
+        # Find-my-PC. A silent notification is no use for locating a laptop
+        # under a cushion, so make actual noise.
+        seconds = self.daemon.config["pc_ring_seconds"]
+        self.daemon.alerter.start(seconds)
+
         self.daemon.notifications.show_local(
-            summary=self.daemon.device_name or "FedoraLink",
-            body=message,
+            summary=f"{self.daemon.device_name or 'Your phone'} is ringing this PC",
+            body=body.get("message") or "Sent from FedoraLink on your phone.",
+            urgent=True,
+            # The alerter decides: None when it can ring properly itself,
+            # a sound-theme name when the notification is the only noise.
+            sound_name=self.daemon.alerter.fallback_sound_name,
         )
+
+    def stop_pc_ring(self) -> None:
+        """Silence a find-my-PC alert from the desktop side."""
+        self.daemon.alerter.stop()

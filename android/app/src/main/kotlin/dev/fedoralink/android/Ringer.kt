@@ -12,12 +12,18 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.util.Log
+import org.json.JSONObject
 
 /**
- * Find-my-phone: ring at full volume even when the phone is silenced.
+ * Find-my-phone in both directions.
  *
- * Uses the alarm stream, because that's the one that still plays under
- * Do Not Disturb — which is exactly when you've lost the thing.
+ * Inbound (`ring`/`stop`): the PC asks this phone to ring at full volume
+ * even when it is silenced. Uses the alarm stream, because that's the one
+ * that still plays under Do Not Disturb — which is exactly when you've
+ * lost the thing.
+ *
+ * Outbound (`ringPc`): this phone asks the PC to make noise, for when the
+ * laptop is the thing that's missing.
  */
 object Ringer {
 
@@ -33,6 +39,10 @@ object Ringer {
     // or an early stop leaves the phone buzzing with the ringtone silent.
     private var vibrator: Vibrator? = null
     private val cancelVibrationRunnable = Runnable { cancelVibration() }
+
+    /** Find-my-PC: ask the desktop to make noise. */
+    fun ringPc(): Boolean =
+        LinkManager.send(Protocol.PING, JSONObject().put("ring", true))
 
     fun ring(context: Context) {
         stop(context)

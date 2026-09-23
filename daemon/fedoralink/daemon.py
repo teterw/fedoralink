@@ -8,11 +8,14 @@ from typing import Any
 
 from gi.repository import Gio, GLib
 
+from . import config as config_module
+from .alert import Alerter
 from .dbus_service import DBusService
 from .plugins.battery import BatteryPlugin
 from .plugins.clipboard import ClipboardPlugin
 from .plugins.notification import NotificationPlugin
 from .plugins.ping import PingPlugin
+from .plugins.presence import PresencePlugin
 from .protocol import IDENTITY, PROTOCOL_VERSION, SERVICE_UUID, make_packet
 from .transport import Connection, RfcommTransport
 
@@ -26,6 +29,9 @@ RECONNECT_INTERVAL_SECONDS = 60
 
 class Daemon:
     def __init__(self) -> None:
+        self.config = config_module.load()
+        self.alerter = Alerter()
+
         self.transport = RfcommTransport(
             on_connected=self._on_connected,
             on_disconnected=self._on_disconnected,
@@ -40,6 +46,7 @@ class Daemon:
             self.notifications,
             self.clipboard,
             self.ping,
+            PresencePlugin(self),
         ]
 
         # type -> plugins, built once so packet dispatch is a dict lookup.
@@ -63,6 +70,8 @@ class Daemon:
 
     def run(self) -> None:
         self._system_bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+
+        log.debug("config: %s", self.config)
 
         for plugin in self.plugins:
             plugin.start()
@@ -89,6 +98,7 @@ class Daemon:
         return GLib.SOURCE_REMOVE
 
     def shutdown(self) -> None:
+        self.alerter.stop()
         if self._reconnect_source is not None:
             GLib.source_remove(self._reconnect_source)
             self._reconnect_source = None
